@@ -207,6 +207,73 @@ function Hero() {
   );
 }
 
+// ─── What is this ─────────────────────────────────────────────────────────────
+
+function WhatIsThis() {
+  return (
+    <section className="py-24 px-6" style={{ background: "rgba(13,17,23,0.5)" }}>
+      <div className="max-w-3xl mx-auto">
+        <Reveal>
+          <Tag>C&apos;est quoi concrètement ?</Tag>
+          <h2 className="mt-6 text-4xl font-bold leading-tight">
+            Mon Petit Prono.<br />
+            <span className="gradient-text">Mais version crypto.</span>
+          </h2>
+        </Reveal>
+
+        <Reveal delay={0.1} className="mt-8">
+          <p className="text-lg leading-relaxed" style={{ color: "#94a3b8" }}>
+            Tu te souviens de Mon Petit Prono pendant la Coupe du Monde — pronostiquer les scores avec tes potes, voir qui avait vu juste, se foutre de la gueule du dernier du classement ?
+          </p>
+          <p className="text-lg leading-relaxed mt-4" style={{ color: "#94a3b8" }}>
+            ScoreVault c&apos;est exactement ça. Sauf qu&apos;au lieu de faire confiance à une plateforme centrale pour gérer la cagnotte et calculer les scores, <strong style={{ color: "#f1f5f9" }}>tout est automatique et transparent</strong> — les règles sont écrites dans du code que personne ne peut modifier, la cagnotte est bloquée jusqu&apos;à la fin du tournoi, et les gains se distribuent tout seuls selon la précision de chacun.
+          </p>
+        </Reveal>
+
+        <div className="mt-12 grid sm:grid-cols-3 gap-4">
+          {[
+            {
+              emoji: "⚽",
+              title: "Tu pronostics les scores",
+              desc: "Avant chaque match, tu soumets ton score prédit. France 2-1 Brésil. C'est tout.",
+              color: "#3b82f6",
+            },
+            {
+              emoji: "🔒",
+              title: "La cagnotte est bloquée",
+              desc: "Chaque joueur dépose sa mise au départ. L'argent est gelé dans un contrat — personne ne peut y toucher avant la fin.",
+              color: "#10b981",
+            },
+            {
+              emoji: "🏆",
+              title: "Les meilleurs sont récompensés",
+              desc: "À la fin du tournoi, la cagnotte se redistribue automatiquement selon la précision de tes pronostics sur tous les matchs.",
+              color: "#f59e0b",
+            },
+          ].map(({ emoji, title, desc, color }, i) => (
+            <Reveal key={title} delay={0.1 + i * 0.08}>
+              <div className="glass rounded-2xl p-6 h-full flex flex-col gap-3">
+                <div className="text-3xl">{emoji}</div>
+                <div className="font-bold text-base" style={{ color }}>{title}</div>
+                <div className="text-sm leading-relaxed" style={{ color: "#64748b" }}>{desc}</div>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal delay={0.4} className="mt-8">
+          <div className="rounded-2xl p-6" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
+            <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
+              <span style={{ color: "#60a5fa", fontWeight: 600 }}>La différence avec Mon Petit Prono ?</span>{" "}
+              Pas de plateforme qui peut perdre ton argent, changer les règles ou fermer du jour au lendemain. Les règles sont gravées dans le code. Le classement est public. Les paiements sont automatiques. C&apos;est ça, la crypto quand elle sert à quelque chose.
+            </p>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 // ─── Problem ──────────────────────────────────────────────────────────────────
 
 function Problem() {
@@ -928,6 +995,7 @@ export default function Home() {
     <main>
       <Nav />
       <Hero />
+      <WhatIsThis />
       <Problem />
       <Mechanism />
       <ScoringEngine />
