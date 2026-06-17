@@ -12,7 +12,7 @@ import {
   Trophy, Users, Calendar, Clock,
   Check, Star, TrendingUp, TrendingDown, ArrowRight,
   Zap, Shield, BarChart3, Home as HomeIcon, Target, List,
-  Lock, Cpu, Eye, DollarSign,
+  Lock, Cpu, Eye, DollarSign, ExternalLink, Flame, Hash,
 } from "lucide-react";
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
@@ -825,6 +825,311 @@ function AppDemo() {
   );
 }
 
+// ─── Polymarket Section ────────────────────────────────────────────────────────
+
+function PoweredByPolymarket() {
+  return (
+    <section className="py-24 px-6">
+      <div className="max-w-4xl mx-auto">
+        <Reveal className="text-center mb-16">
+          <Tag>Odds engine</Tag>
+          <h2 className="mt-5 text-4xl font-bold leading-tight">
+            The odds aren't set by us.<br />
+            <span className="gradient-text">They're set by the market.</span>
+          </h2>
+          <p className="mt-4 text-base max-w-2xl mx-auto" style={{ color: "#64748b" }}>
+            ScoreVault reads live prices from Polymarket — the world's largest on-chain prediction market —
+            15 minutes before each kickoff. Those prices become the point values. Locked on-chain. Immutable.
+          </p>
+        </Reveal>
+
+        {/* Polymarket callout */}
+        <Reveal className="mb-10">
+          <div className="rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5"
+            style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.1), rgba(59,130,246,0.08))", border: "1px solid rgba(99,102,241,0.25)" }}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(99,102,241,0.15)" }}>
+              <Hash size={22} style={{ color: "#818cf8" }} />
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-base mb-1" style={{ color: "#818cf8" }}>
+                Powered by Polymarket
+              </div>
+              <p className="text-sm leading-relaxed" style={{ color: "#64748b" }}>
+                Polymarket is a peer-to-peer prediction market running on-chain.
+                Its prices reflect the collective probability estimate of thousands of traders —
+                not a bookie's margin. When ScoreVault reads "France wins at 0.65",
+                that's 10,000 people putting real money behind that number.
+              </p>
+            </div>
+            <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs font-semibold flex-shrink-0 px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+              style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.25)" }}>
+              polymarket.com <ExternalLink size={10} />
+            </a>
+          </div>
+        </Reveal>
+
+        {/* How the conversion works */}
+        <div className="grid sm:grid-cols-3 gap-4 mb-8">
+          {[
+            {
+              outcome: "Home win",
+              flag: "🇫🇷",
+              team: "France",
+              polyPrice: "0.65",
+              cote: "1.54",
+              pts: "15",
+              color: "#3b82f6",
+              likely: true,
+            },
+            {
+              outcome: "Draw",
+              flag: "🤝",
+              team: "",
+              polyPrice: "0.20",
+              cote: "5.00",
+              pts: "50",
+              color: "#f59e0b",
+              likely: false,
+            },
+            {
+              outcome: "Away win",
+              flag: "🇦🇷",
+              team: "Argentina",
+              polyPrice: "0.15",
+              cote: "6.67",
+              pts: "67",
+              color: "#10b981",
+              likely: false,
+            },
+          ].map((o, i) => (
+            <Reveal key={o.outcome} delay={i * 0.08}>
+              <div className="glass rounded-2xl p-5 text-center h-full"
+                style={{ border: `1px solid ${o.color}25` }}>
+                <div className="text-2xl mb-2">{o.flag}</div>
+                <div className="text-xs font-semibold mb-3" style={{ color: "#64748b" }}>
+                  {o.outcome}{o.team ? ` · ${o.team}` : ""}
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-lg"
+                    style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <span style={{ color: "#475569" }}>Polymarket price</span>
+                    <span className="font-mono font-bold" style={{ color: "#818cf8" }}>{o.polyPrice}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-lg"
+                    style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <span style={{ color: "#475569" }}>Implied cote (1/p)</span>
+                    <span className="font-mono font-bold" style={{ color: "#94a3b8" }}>×{o.cote}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2 rounded-xl"
+                    style={{ background: `${o.color}12`, border: `1px solid ${o.color}25` }}>
+                    <span style={{ color: o.color }}>Points if correct</span>
+                    <span className="font-mono font-bold text-base" style={{ color: o.color }}>+{o.pts} pts</span>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal delay={0.3}>
+          <p className="text-center text-sm" style={{ color: "#475569" }}>
+            France vs Argentina · Round of 16 · Odds snapshot 15 min before kickoff
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+// ─── Scoring Engine ────────────────────────────────────────────────────────────
+
+function ScoringEngine() {
+  const RARITY = [
+    { score: "1 – 0", freq: "Most common", bonus: "+20 pts",  bar: 15,  color: "#475569" },
+    { score: "2 – 1", freq: "Common",      bonus: "+25 pts",  bar: 22,  color: "#64748b" },
+    { score: "2 – 0", freq: "Common",      bonus: "+25 pts",  bar: 22,  color: "#64748b" },
+    { score: "1 – 1", freq: "Common",      bonus: "+30 pts",  bar: 30,  color: "#3b82f6" },
+    { score: "3 – 1", freq: "Uncommon",    bonus: "+40 pts",  bar: 42,  color: "#8b5cf6" },
+    { score: "3 – 0", freq: "Rare",        bonus: "+55 pts",  bar: 58,  color: "#f59e0b" },
+    { score: "4 – 0", freq: "Very rare",   bonus: "+70 pts",  bar: 74,  color: "#ef4444" },
+    { score: "5 – 0", freq: "Exceptional", bonus: "+100 pts", bar: 100, color: "#10b981" },
+  ];
+
+  const TOURNAMENT = [
+    { label: "Tournament winner", example: "France", pts: "cote × 10", icon: "🏆" },
+    { label: "Top scorer",        example: "Mbappé", pts: "cote × 10", icon: "⚽" },
+  ];
+
+  return (
+    <section className="py-24 px-6" style={{ background: "rgba(13,17,23,0.6)" }}>
+      <div className="max-w-4xl mx-auto">
+        <Reveal className="text-center mb-16">
+          <Tag>Scoring rules</Tag>
+          <h2 className="mt-5 text-4xl font-bold leading-tight">
+            The harder the call,<br />
+            <span className="gradient-text">the bigger the reward.</span>
+          </h2>
+          <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#64748b" }}>
+            Every match has three layers of scoring.
+            Inspired by MPG's World Cup algorithm. Calibrated by real market odds.
+          </p>
+        </Reveal>
+
+        <div className="grid md:grid-cols-3 gap-6">
+
+          {/* Layer 1 */}
+          <Reveal delay={0.05} className="md:col-span-1">
+            <div className="glass rounded-2xl p-6 h-full">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(99,102,241,0.15)" }}>
+                  <Hash size={14} style={{ color: "#818cf8" }} />
+                </div>
+                <div>
+                  <div className="text-[10px] tracking-widest uppercase font-semibold" style={{ color: "#475569" }}>
+                    Layer 1
+                  </div>
+                  <div className="text-sm font-bold">Outcome points</div>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: "#64748b" }}>
+                Pick the right outcome (home win / draw / away win)
+                and earn points proportional to how unlikely it was.
+              </p>
+              <div className="rounded-xl p-3 font-mono text-sm text-center"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <span style={{ color: "#818cf8" }}>pts</span>
+                <span style={{ color: "#475569" }}> = </span>
+                <span style={{ color: "#60a5fa" }}>(1 / polymarket_price)</span>
+                <span style={{ color: "#475569" }}> × </span>
+                <span style={{ color: "#10b981" }}>10</span>
+              </div>
+              <div className="mt-4 space-y-1.5 text-xs">
+                {[
+                  { label: "Predict favorite wins (p=0.70)", val: "14 pts", c: "#64748b" },
+                  { label: "Predict draw (p=0.20)", val: "50 pts", c: "#3b82f6" },
+                  { label: "Predict upset (p=0.10)", val: "100 pts", c: "#10b981" },
+                ].map(r => (
+                  <div key={r.label} className="flex justify-between items-center">
+                    <span style={{ color: "#475569" }}>{r.label}</span>
+                    <span className="font-mono font-bold" style={{ color: r.c }}>{r.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Layer 2 */}
+          <Reveal delay={0.1} className="md:col-span-1">
+            <div className="glass rounded-2xl p-6 h-full">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(245,158,11,0.15)" }}>
+                  <Flame size={14} style={{ color: "#f59e0b" }} />
+                </div>
+                <div>
+                  <div className="text-[10px] tracking-widest uppercase font-semibold" style={{ color: "#475569" }}>
+                    Layer 2
+                  </div>
+                  <div className="text-sm font-bold">Exact score bonus</div>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: "#64748b" }}>
+                Nail the exact scoreline and earn a rarity bonus — the rarer the score in World Cup history, the bigger the reward.
+              </p>
+              <div className="space-y-1.5">
+                {RARITY.map(r => (
+                  <div key={r.score} className="flex items-center gap-2">
+                    <span className="font-mono text-xs w-10 flex-shrink-0" style={{ color: "#64748b" }}>{r.score}</span>
+                    <div className="flex-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${r.bar}%` }}
+                        transition={{ duration: 0.8, delay: 0.3 + RARITY.indexOf(r) * 0.05, ease: "easeOut" }}
+                        className="h-full rounded-full" style={{ background: r.color }} />
+                    </div>
+                    <span className="text-[10px] font-mono font-bold w-16 text-right flex-shrink-0" style={{ color: r.color }}>
+                      {r.bonus}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] mt-3" style={{ color: "#334155" }}>
+                Based on historical World Cup score frequency (1966–2022)
+              </p>
+            </div>
+          </Reveal>
+
+          {/* Layer 3 */}
+          <Reveal delay={0.15} className="md:col-span-1">
+            <div className="glass rounded-2xl p-6 h-full">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(16,185,129,0.15)" }}>
+                  <Trophy size={14} style={{ color: "#10b981" }} />
+                </div>
+                <div>
+                  <div className="text-[10px] tracking-widest uppercase font-semibold" style={{ color: "#475569" }}>
+                    Layer 3
+                  </div>
+                  <div className="text-sm font-bold">Tournament picks</div>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: "#64748b" }}>
+                Before the first match, you pick a tournament winner and a top scorer.
+                Locked on-chain at kickoff. Paid out at the final whistle.
+              </p>
+              <div className="space-y-3">
+                {TOURNAMENT.map(t => (
+                  <div key={t.label} className="glass rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span>{t.icon}</span>
+                      <span className="text-xs font-semibold">{t.label}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span style={{ color: "#475569" }}>e.g. {t.example}</span>
+                      <span className="font-mono font-bold" style={{ color: "#10b981" }}>{t.pts}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl p-3"
+                style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
+                <p className="text-xs leading-relaxed" style={{ color: "#64748b" }}>
+                  <span style={{ color: "#10b981", fontWeight: 600 }}>90 min only.</span>{" "}
+                  Scores are based on the 90-minute result. No extra time, no penalties.
+                  What's on the board at the final whistle is what counts.
+                </p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+
+        {/* Payout */}
+        <Reveal delay={0.3} className="mt-8">
+          <div className="glass rounded-2xl p-6 flex flex-col sm:flex-row items-start gap-5"
+            style={{ border: "1px solid rgba(59,130,246,0.15)" }}>
+            <div className="flex-1">
+              <div className="font-bold mb-1">Prize pool distribution: score²</div>
+              <p className="text-sm leading-relaxed" style={{ color: "#64748b" }}>
+                At the end of the tournament, the prize pool is distributed proportionally
+                to each player's total points squared. This keeps every player in the race
+                until the very last match — a strong final week can flip the entire leaderboard.
+              </p>
+            </div>
+            <div className="text-center flex-shrink-0">
+              <div className="font-mono text-sm px-4 py-2 rounded-xl"
+                style={{ background: "rgba(59,130,246,0.08)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
+                payout_i = pool × pts_i² / Σpts²
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 // ─── How It Works ──────────────────────────────────────────────────────────────
 
 function HowItWorks() {
@@ -925,6 +1230,8 @@ export default function Home() {
       <Nav />
       <Hero />
       <OnChain />
+      <PoweredByPolymarket />
+      <ScoringEngine />
       <AppDemo />
       <HowItWorks />
       <Footer />
