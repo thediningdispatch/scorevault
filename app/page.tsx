@@ -1,64 +1,132 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useScroll, useTransform, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect } from "react";
 import {
-  Shield, Zap, Trophy, Lock, Eye, BarChart3, ChevronRight,
-  Users, DollarSign, GitMerge, Hash, Cpu, Award,
-  ArrowRight, Check, AlertCircle
+  motion,
+  AnimatePresence,
+  useInView,
+  useScroll,
+  useTransform,
+} from "framer-motion";
+import {
+  Trophy, Users, Calendar, Clock,
+  Check, Star, TrendingUp, TrendingDown, ArrowRight,
+  Zap, Shield, BarChart3, Home as HomeIcon, Target, List, Coins,
 } from "lucide-react";
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// ─── Data ──────────────────────────────────────────────────────────────────────
 
-const FLOW_STEPS = [
-  { icon: Users, label: "Create League", color: "#3b82f6", desc: "Set entry fee, max players, competition" },
-  { icon: DollarSign, label: "Deposit USDC", color: "#8b5cf6", desc: "Funds locked in smart contract vault" },
-  { icon: Hash, label: "Commit Prediction", color: "#06b6d4", desc: "Submit keccak256 hash — nobody sees your pick" },
-  { icon: Eye, label: "Reveal Score", color: "#10b981", desc: "Post-deadline: reveal your secret + score" },
-  { icon: Cpu, label: "Oracle Resolution", color: "#f59e0b", desc: "Official result confirmed on-chain" },
-  { icon: Award, label: "Final Payout", color: "#ec4899", desc: "Algorithmic distribution by score²" },
+const MY_NAME = "Jules";
+
+const LEAGUE = {
+  name: "Les Potes du 75",
+  pool: 200,
+  entry: 20,
+  playerCount: 10,
+  totalMatches: 46,
+  doneMatches: 18,
+  myRank: 2,
+  myPts: 1720,
+};
+
+const PLAYERS = [
+  { rank: 1, name: "Vianney", pts: 1840, trend: "+12", isMe: false },
+  { rank: 2, name: "Jules",   pts: 1720, trend: "+8",  isMe: true  },
+  { rank: 3, name: "Chloé",   pts: 1610, trend: "+5",  isMe: false },
+  { rank: 4, name: "Thomas",  pts: 1420, trend: "-2",  isMe: false },
+  { rank: 5, name: "Mehdi",   pts: 1350, trend: "-4",  isMe: false },
+  { rank: 6, name: "Sarah",   pts: 1180, trend: "-6",  isMe: false },
+  { rank: 7, name: "Axel",    pts: 1050, trend: "-3",  isMe: false },
+  { rank: 8, name: "Lucas",   pts:  890, trend: "-8",  isMe: false },
+  { rank: 9, name: "Emma",    pts:  740, trend: "-2",  isMe: false },
+  { rank: 10, name: "Romain", pts:  610, trend: "-11", isMe: false },
 ];
 
-const LEADERBOARD = [
-  { rank: 1, name: "Vianney", pts: 1840, payout: 310, trend: "+12" },
-  { rank: 2, name: "Jules", pts: 1720, payout: 270, trend: "+8" },
-  { rank: 3, name: "Chloé", pts: 1610, payout: 220, trend: "+5" },
-  { rank: 4, name: "Alex", pts: 1420, payout: 160, trend: "-2" },
-  { rank: 5, name: "Paul", pts: 1210, payout: 90, trend: "-4" },
+const UPCOMING_MATCHES = [
+  {
+    id: 1,
+    home: { name: "France",   flag: "🇫🇷" },
+    away: { name: "Argentine",flag: "🇦🇷" },
+    date: "Sam 28 juin", time: "21:00",
+    phase: "Huitièmes de finale",
+    deadline: "Sam 28 juin · 20h45",
+  },
+  {
+    id: 2,
+    home: { name: "Brésil",    flag: "🇧🇷" },
+    away: { name: "Allemagne", flag: "🇩🇪" },
+    date: "Dim 29 juin", time: "18:00",
+    phase: "Huitièmes de finale",
+    deadline: "Dim 29 juin · 17h45",
+  },
+  {
+    id: 3,
+    home: { name: "Espagne",   flag: "🇪🇸" },
+    away: { name: "Angleterre",flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+    date: "Lun 30 juin", time: "21:00",
+    phase: "Huitièmes de finale",
+    deadline: "Lun 30 juin · 20h45",
+  },
 ];
 
-const CONTRACTS = [
-  { name: "LeagueFactory", desc: "Deploys new league vaults with custom params", color: "#3b82f6" },
-  { name: "LeagueVault", desc: "Holds USDC deposits, enforces deadlines", color: "#8b5cf6" },
-  { name: "PredictionCommitment", desc: "Stores keccak256 hashes, validates reveals", color: "#06b6d4" },
-  { name: "ScoreEngine", desc: "Calculates match scores, bonuses, total points", color: "#10b981" },
-  { name: "OracleAdapter", desc: "Ingests official results, triggers resolution", color: "#f59e0b" },
-  { name: "PayoutDistributor", desc: "Computes score² weights, sends USDC transfers", color: "#ec4899" },
+const PAST_MATCHES = [
+  {
+    id: 10,
+    home: { name: "France",   flag: "🇫🇷", score: 2 },
+    away: { name: "Belgique", flag: "🇧🇪", score: 1 },
+    myPred: { home: 2, away: 0 },
+    pts: 130, date: "12 juin",
+  },
+  {
+    id: 11,
+    home: { name: "Argentine", flag: "🇦🇷", score: 2 },
+    away: { name: "Pologne",   flag: "🇵🇱", score: 1 },
+    myPred: { home: 2, away: 1 },
+    pts: 200, date: "13 juin",
+  },
+  {
+    id: 12,
+    home: { name: "Espagne", flag: "🇪🇸", score: 3 },
+    away: { name: "Suisse",  flag: "🇨🇭", score: 0 },
+    myPred: { home: 2, away: 0 },
+    pts: 80, date: "14 juin",
+  },
+  {
+    id: 13,
+    home: { name: "Brésil", flag: "🇧🇷", score: 1 },
+    away: { name: "Mexique",flag: "🇲🇽", score: 1 },
+    myPred: { home: 2, away: 0 },
+    pts: 0, date: "16 juin",
+  },
 ];
 
-const RESEARCH_QS = [
-  "How should prediction accuracy be measured across a full tournament?",
-  "How can rewards be distributed fairly without pure winner-takes-all?",
-  "How does commit-reveal prevent front-running and score copying?",
-  "How should disputed match results be handled through optimistic oracles?",
-  "Can private prediction leagues remain transparent without becoming gambling products?",
-];
+// ─── Utils ─────────────────────────────────────────────────────────────────────
 
-// ─── Components ──────────────────────────────────────────────────────────────
+function ptColor(pts: number) {
+  if (pts >= 150) return "#10b981";
+  if (pts >= 80)  return "#60a5fa";
+  if (pts > 0)    return "#f59e0b";
+  return "#475569";
+}
+
+function avatarColor(name: string) {
+  const palette = ["#3b82f6","#8b5cf6","#ec4899","#10b981","#f59e0b","#06b6d4","#ef4444","#84cc16"];
+  return palette[name.charCodeAt(0) % palette.length];
+}
+
+// ─── Primitives ────────────────────────────────────────────────────────────────
 
 function Reveal({ children, delay = 0, className = "" }: {
   children: React.ReactNode; delay?: number; className?: string;
 }) {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { once: true, margin: "-60px" });
   return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 24 }}
+    <motion.div ref={ref}
+      initial={{ opacity: 0, y: 20 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}
-    >
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={className}>
       {children}
     </motion.div>
   );
@@ -73,133 +141,140 @@ function Tag({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Animated background ──────────────────────────────────────────────────────
-
-function HeroBg() {
+function Avatar({ name, isMe = false }: { name: string; isMe?: boolean }) {
+  const c = avatarColor(name);
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage: "linear-gradient(rgba(59,130,246,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.5) 1px, transparent 1px)",
-          backgroundSize: "60px 60px"
-        }}
-      />
-      <motion.div
-        animate={{ scale: [1, 1.15, 1], opacity: [0.15, 0.25, 0.15] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%)" }}
-      />
-      <motion.div
-        animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 3 }}
-        className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)" }}
-      />
-      <motion.div
-        animate={{ scale: [1, 1.1, 1], opacity: [0.08, 0.15, 0.08] }}
-        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 6 }}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(6,182,212,0.1) 0%, transparent 70%)" }}
-      />
+    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
+      style={{ background: `${c}22`, color: c, border: `2px solid ${isMe ? c : "transparent"}` }}>
+      {name[0]}
     </div>
   );
 }
 
-// ─── Hero ─────────────────────────────────────────────────────────────────────
+// ─── Nav ───────────────────────────────────────────────────────────────────────
+
+function Nav() {
+  const { scrollY } = useScroll();
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => scrollY.on("change", v => setScrolled(v > 40)), [scrollY]);
+
+  return (
+    <motion.nav
+      className="fixed top-0 left-0 right-0 z-50 px-6 py-3.5 flex items-center justify-between transition-all duration-300"
+      style={{
+        background: scrolled ? "rgba(5,8,16,0.92)" : "transparent",
+        backdropFilter: scrolled ? "blur(20px)" : "none",
+        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "1px solid transparent",
+      }}>
+      <div className="flex items-center gap-2.5">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{ background: "rgba(59,130,246,0.2)" }}>
+          <Zap size={13} style={{ color: "#60a5fa" }} />
+        </div>
+        <span className="font-bold text-sm tracking-tight">ScoreVault</span>
+        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+          style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+          BETA
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-xs hidden sm:block" style={{ color: "#475569" }}>
+          ⚽ FIFA World Cup 2026
+        </span>
+        <a href="#app"
+          className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 hover:-translate-y-px"
+          style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white" }}>
+          Voir l'app
+        </a>
+      </div>
+    </motion.nav>
+  );
+}
+
+// ─── Hero ──────────────────────────────────────────────────────────────────────
 
 function Hero() {
   const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 500], [0, 120]);
-  const opacity = useTransform(scrollY, [0, 400], [1, 0]);
+  const y = useTransform(scrollY, [0, 400], [0, 80]);
+  const opacity = useTransform(scrollY, [0, 300], [1, 0]);
 
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-16 overflow-hidden">
-      <HeroBg />
+    <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-12 overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage: "linear-gradient(rgba(59,130,246,0.7) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.7) 1px, transparent 1px)",
+          backgroundSize: "50px 50px",
+        }} />
+      <motion.div className="absolute -top-32 right-0 w-[500px] h-[500px] rounded-full pointer-events-none"
+        animate={{ scale: [1, 1.12, 1], opacity: [0.12, 0.22, 0.12] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        style={{ background: "radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)" }} />
+      <motion.div className="absolute -bottom-32 -left-32 w-[400px] h-[400px] rounded-full pointer-events-none"
+        animate={{ scale: [1, 1.15, 1], opacity: [0.08, 0.18, 0.08] }}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+        style={{ background: "radial-gradient(circle, rgba(16,185,129,0.2) 0%, transparent 70%)" }} />
+
       <motion.div style={{ y, opacity }} className="relative z-10 text-center max-w-4xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-6"
-        >
-          <Tag>⬡ Ethereum Research Prototype</Tag>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+          className="mb-5">
+          <Tag>⚽ FIFA World Cup 2026 · Beta fermée</Tag>
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          className="text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.05] tracking-tight mb-8"
-        >
-          The on-chain prediction league
-          <br />
-          <span className="gradient-text">for football tournaments.</span>
+          initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          className="text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.06] tracking-tight mb-6">
+          Les pronostics foot<br />
+          <span className="gradient-text">avec de l'argent sur la table.</span>
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.25 }}
-          className="text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed"
-          style={{ color: "#94a3b8" }}
-        >
-          Private leagues. Encrypted predictions. Funds locked in a smart contract.
-          Rewards distributed algorithmically after oracle-based match resolution.
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="text-lg md:text-xl max-w-xl mx-auto mb-10 leading-relaxed"
+          style={{ color: "#94a3b8" }}>
+          Crée une ligue avec tes potes, mettez une mise, pronostiquez les scores.
+          Le meilleur pronostiqueur rafle la cagnotte.
         </motion.p>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.35 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4"
-        >
-          <a href="#mechanism"
-            className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 hover:-translate-y-0.5"
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a href="#app"
+            className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 hover:-translate-y-0.5"
             style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)" }}>
-            Read the mechanism <ArrowRight size={16} />
+            Voir le démo <ArrowRight size={15} />
           </a>
-          <a href="#prototype"
-            className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5"
+          <a href="#comment"
+            className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0" }}>
-            View prototype <ChevronRight size={16} />
+            Comment ça marche
           </a>
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="mt-20 grid grid-cols-3 gap-4 max-w-md mx-auto"
-        >
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.45 }}
+          className="mt-16 grid grid-cols-3 gap-6 max-w-sm mx-auto">
           {[
-            { val: "1,250", unit: "USDC", label: "Prize Pool" },
-            { val: "25", unit: "Players", label: "Active" },
-            { val: "6", unit: "Contracts", label: "On-chain" },
-          ].map(({ val, unit, label }) => (
+            { val: "200€", label: "Cagnotte moyenne" },
+            { val: "10",   label: "Potes par ligue"  },
+            { val: "46",   label: "Matchs / tournoi" },
+          ].map(({ val, label }) => (
             <div key={label} className="text-center">
-              <div className="text-2xl font-bold" style={{ color: "#60a5fa" }}>
-                {val} <span className="text-sm font-normal" style={{ color: "#94a3b8" }}>{unit}</span>
-              </div>
+              <div className="text-2xl font-bold" style={{ color: "#60a5fa" }}>{val}</div>
               <div className="text-xs mt-0.5" style={{ color: "#475569" }}>{label}</div>
             </div>
           ))}
         </motion.div>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.2 }}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2"
-      >
-        <motion.div
-          animate={{ y: [0, 6, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          className="flex flex-col items-center gap-1"
-          style={{ color: "#334155" }}
-        >
-          <div className="w-px h-8 bg-gradient-to-b from-transparent to-current" />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
+        className="absolute bottom-8 left-1/2 -translate-x-1/2">
+        <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
+          className="flex flex-col items-center gap-1" style={{ color: "#334155" }}>
+          <div className="w-px h-7 bg-gradient-to-b from-transparent to-current" />
           <div className="text-[10px] tracking-widest uppercase">Scroll</div>
         </motion.div>
       </motion.div>
@@ -207,802 +282,565 @@ function Hero() {
   );
 }
 
-// ─── What is this ─────────────────────────────────────────────────────────────
+// ─── App Demo ──────────────────────────────────────────────────────────────────
 
-function WhatIsThis() {
+type Tab = "ligue" | "pronostics" | "classement";
+
+function LeagueHeader() {
+  const pct = (LEAGUE.doneMatches / LEAGUE.totalMatches) * 100;
   return (
-    <section className="py-24 px-6" style={{ background: "rgba(13,17,23,0.5)" }}>
-      <div className="max-w-3xl mx-auto">
-        <Reveal>
-          <Tag>C&apos;est quoi concrètement ?</Tag>
-          <h2 className="mt-6 text-4xl font-bold leading-tight">
-            Mon Petit Prono.<br />
-            <span className="gradient-text">Mais version crypto.</span>
-          </h2>
-        </Reveal>
-
-        <Reveal delay={0.1} className="mt-8">
-          <p className="text-lg leading-relaxed" style={{ color: "#94a3b8" }}>
-            Tu te souviens de Mon Petit Prono pendant la Coupe du Monde — pronostiquer les scores avec tes potes, voir qui avait vu juste, se foutre de la gueule du dernier du classement ?
-          </p>
-          <p className="text-lg leading-relaxed mt-4" style={{ color: "#94a3b8" }}>
-            ScoreVault c&apos;est exactement ça. Sauf qu&apos;au lieu de faire confiance à une plateforme centrale pour gérer la cagnotte et calculer les scores, <strong style={{ color: "#f1f5f9" }}>tout est automatique et transparent</strong> — les règles sont écrites dans du code que personne ne peut modifier, la cagnotte est bloquée jusqu&apos;à la fin du tournoi, et les gains se distribuent tout seuls selon la précision de chacun.
-          </p>
-        </Reveal>
-
-        <div className="mt-12 grid sm:grid-cols-3 gap-4">
-          {[
-            {
-              emoji: "⚽",
-              title: "Tu pronostics les scores",
-              desc: "Avant chaque match, tu soumets ton score prédit. France 2-1 Brésil. C'est tout.",
-              color: "#3b82f6",
-            },
-            {
-              emoji: "🔒",
-              title: "La cagnotte est bloquée",
-              desc: "Chaque joueur dépose sa mise au départ. L'argent est gelé dans un contrat — personne ne peut y toucher avant la fin.",
-              color: "#10b981",
-            },
-            {
-              emoji: "🏆",
-              title: "Les meilleurs sont récompensés",
-              desc: "À la fin du tournoi, la cagnotte se redistribue automatiquement selon la précision de tes pronostics sur tous les matchs.",
-              color: "#f59e0b",
-            },
-          ].map(({ emoji, title, desc, color }, i) => (
-            <Reveal key={title} delay={0.1 + i * 0.08}>
-              <div className="glass rounded-2xl p-6 h-full flex flex-col gap-3">
-                <div className="text-3xl">{emoji}</div>
-                <div className="font-bold text-base" style={{ color }}>{title}</div>
-                <div className="text-sm leading-relaxed" style={{ color: "#64748b" }}>{desc}</div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-
-        <Reveal delay={0.4} className="mt-8">
-          <div className="rounded-2xl p-6" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
-            <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
-              <span style={{ color: "#60a5fa", fontWeight: 600 }}>La différence avec Mon Petit Prono ?</span>{" "}
-              Pas de plateforme qui peut perdre ton argent, changer les règles ou fermer du jour au lendemain. Les règles sont gravées dans le code. Le classement est public. Les paiements sont automatiques. C&apos;est ça, la crypto quand elle sert à quelque chose.
-            </p>
+    <div className="rounded-2xl p-4 mb-4"
+      style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.14), rgba(6,182,212,0.07))", border: "1px solid rgba(59,130,246,0.2)" }}>
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <Trophy size={13} style={{ color: "#f59e0b" }} />
+            <span className="font-bold text-sm">{LEAGUE.name}</span>
           </div>
-        </Reveal>
+          <div className="text-[11px]" style={{ color: "#64748b" }}>⚽ FIFA World Cup 2026</div>
+        </div>
+        <div className="text-right">
+          <div className="text-xl font-bold" style={{ color: "#10b981" }}>{LEAGUE.pool}€</div>
+          <div className="text-[10px]" style={{ color: "#475569" }}>cagnotte totale</div>
+        </div>
       </div>
-    </section>
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="flex justify-between text-[10px] mb-1" style={{ color: "#475569" }}>
+            <span>{LEAGUE.doneMatches} matchs joués</span>
+            <span>{LEAGUE.totalMatches - LEAGUE.doneMatches} restants</span>
+          </div>
+          <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+              className="h-full rounded-full"
+              style={{ background: "linear-gradient(90deg, #3b82f6, #06b6d4)" }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full flex-shrink-0"
+          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
+          <Users size={10} /> {LEAGUE.playerCount} joueurs
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ─── Problem ──────────────────────────────────────────────────────────────────
+// ── Tab : Ma Ligue ─────────────────────────────────────────────────────────────
 
-function Problem() {
+function TabLigue({ onGoProno }: { onGoProno: () => void }) {
+  const totalSq = PLAYERS.reduce((a, p) => a + p.pts * p.pts, 0);
+  const myEst = Math.round((LEAGUE.pool * LEAGUE.myPts * LEAGUE.myPts) / totalSq);
+
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-3xl mx-auto">
-        <Reveal>
-          <Tag>The problem</Tag>
-        </Reveal>
-        <Reveal delay={0.1} className="mt-6">
-          <h2 className="text-4xl font-bold leading-tight">
-            You trust the platform.<br />
-            <span style={{ color: "#334155" }}>You shouldn&apos;t have to.</span>
-          </h2>
-        </Reveal>
-        <div className="mt-12 grid sm:grid-cols-2 gap-4">
-          {[
-            { issue: "Predictions are stored centrally", fix: "Commit hashes on-chain" },
-            { issue: "Score calculation is a black box", fix: "Open scoring formula" },
-            { issue: "Prize pool could be mismanaged", fix: "Vault locked in contract" },
-            { issue: "Results can be disputed silently", fix: "Optimistic oracle with challenge period" },
-          ].map(({ issue, fix }, i) => (
-            <Reveal key={issue} delay={i * 0.05}>
-              <div className="glass rounded-xl p-5 glow-card h-full">
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(239,68,68,0.15)" }}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                  </div>
-                  <span className="text-sm" style={{ color: "#94a3b8" }}>{issue}</span>
-                </div>
-                <div className="flex items-center gap-2 ml-8">
-                  <Check size={13} style={{ color: "#10b981" }} />
-                  <span className="text-sm font-medium" style={{ color: "#10b981" }}>{fix}</span>
-                </div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
+    <div className="space-y-3">
+      {/* My stats */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "Mon rang",    val: `#${LEAGUE.myRank}`,                  color: "#f59e0b", Icon: Trophy },
+          { label: "Mes points",  val: LEAGUE.myPts.toLocaleString(),         color: "#60a5fa", Icon: Star   },
+          { label: "Gain estimé", val: `~${myEst}€`,                          color: "#10b981", Icon: Coins  },
+        ].map(({ label, val, color, Icon }) => (
+          <div key={label} className="glass rounded-xl p-3 text-center">
+            <Icon size={13} style={{ color }} className="mx-auto mb-1.5" />
+            <div className="font-bold text-sm" style={{ color }}>{val}</div>
+            <div className="text-[10px] mt-0.5" style={{ color: "#475569" }}>{label}</div>
+          </div>
+        ))}
       </div>
-    </section>
-  );
-}
 
-// ─── Mechanism Flow ───────────────────────────────────────────────────────────
-
-function Mechanism() {
-  const [active, setActive] = useState(0);
-
-  return (
-    <section id="mechanism" className="py-24 px-6" style={{ background: "rgba(13,17,23,0.5)" }}>
-      <div className="max-w-5xl mx-auto">
-        <Reveal className="text-center mb-16">
-          <Tag>How it works</Tag>
-          <h2 className="mt-6 text-4xl font-bold">Six steps, fully on-chain.</h2>
-          <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#64748b" }}>
-            Every action is either a smart contract call or a cryptographic commitment. No backend, no trust.
-          </p>
-        </Reveal>
-
-        <div className="hidden md:flex items-center gap-0 mb-12">
-          {FLOW_STEPS.map((step, i) => (
-            <div key={step.label} className="flex items-center flex-1 min-w-0">
-              <motion.button
-                onClick={() => setActive(i)}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className="flex-1 flex flex-col items-center gap-2 p-3 rounded-xl cursor-pointer transition-all duration-200"
-                style={{
-                  background: active === i ? `${step.color}18` : "transparent",
-                  border: `1px solid ${active === i ? step.color + "40" : "transparent"}`,
-                }}
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: `${step.color}20` }}>
-                  <step.icon size={18} style={{ color: step.color }} />
-                </div>
-                <span className="text-xs font-medium text-center leading-tight" style={{ color: active === i ? step.color : "#64748b" }}>
-                  {step.label}
-                </span>
-              </motion.button>
-              {i < FLOW_STEPS.length - 1 && (
-                <div className="w-4 flex-shrink-0 flex items-center justify-center">
-                  <ChevronRight size={12} style={{ color: "#1e293b" }} />
-                </div>
-              )}
-            </div>
-          ))}
+      {/* Recent results */}
+      <div className="glass rounded-2xl p-4">
+        <div className="flex items-center gap-1.5 mb-3 text-[11px] font-semibold" style={{ color: "#475569" }}>
+          <BarChart3 size={11} /> Mes derniers matchs
         </div>
-
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={active}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-            className="glass rounded-2xl p-8 text-center"
-          >
-            <div className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
-              style={{ background: `${FLOW_STEPS[active].color}15` }}>
-              {(() => { const I = FLOW_STEPS[active].icon; return <I size={28} style={{ color: FLOW_STEPS[active].color }} />; })()}
-            </div>
-            <div className="text-2xl font-bold mb-2">{FLOW_STEPS[active].label}</div>
-            <div className="text-base" style={{ color: "#64748b" }}>{FLOW_STEPS[active].desc}</div>
-
-            <div className="mt-6 flex items-center justify-center gap-2">
-              {FLOW_STEPS.map((_, i) => (
-                <button key={i} onClick={() => setActive(i)}
-                  className="transition-all duration-200"
-                  style={{
-                    width: i === active ? 24 : 6,
-                    height: 6,
-                    borderRadius: 3,
-                    background: i === active ? FLOW_STEPS[active].color : "rgba(255,255,255,0.1)"
-                  }}
-                />
-              ))}
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="md:hidden mt-4 space-y-3">
-          {FLOW_STEPS.map((step, i) => (
-            <Reveal key={step.label} delay={i * 0.06}>
-              <div className="glass rounded-xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${step.color}20` }}>
-                  <step.icon size={18} style={{ color: step.color }} />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold">{step.label}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "#64748b" }}>{step.desc}</div>
-                </div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Scoring Engine ───────────────────────────────────────────────────────────
-
-function ScoringEngine() {
-  const [predicted, setPredicted] = useState({ home: 2, away: 1 });
-  const actual = { home: 3, away: 1 };
-
-  const distance = Math.abs(predicted.home - actual.home) + Math.abs(predicted.away - actual.away);
-  const baseScore = Math.max(0, 100 - distance * 25);
-  const outcomeBonus = (() => {
-    const pOut = predicted.home > predicted.away ? "H" : predicted.home < predicted.away ? "A" : "D";
-    const aOut = actual.home > actual.away ? "H" : actual.home < actual.away ? "A" : "D";
-    return pOut === aOut ? 30 : 0;
-  })();
-  const diffBonus = Math.abs(predicted.home - predicted.away) === Math.abs(actual.home - actual.away) ? 20 : 0;
-  const exactBonus = predicted.home === actual.home && predicted.away === actual.away ? 50 : 0;
-  const total = baseScore + outcomeBonus + diffBonus + exactBonus;
-
-  return (
-    <section className="py-24 px-6">
-      <div className="max-w-3xl mx-auto">
-        <Reveal>
-          <Tag>Scoring Engine</Tag>
-          <h2 className="mt-6 text-4xl font-bold">Precision wins. Luck helps.</h2>
-          <p className="mt-4 text-base" style={{ color: "#64748b" }}>
-            Try entering a predicted score below and see the points calculate in real time.
-          </p>
-        </Reveal>
-
-        <Reveal delay={0.1} className="mt-10">
-          <div className="glass rounded-2xl p-6 sm:p-8">
-            <div className="flex items-center justify-between mb-8">
-              <div className="text-sm font-medium" style={{ color: "#94a3b8" }}>
-                World Cup Final — Official Result
-              </div>
-              <div className="flex items-center gap-3 text-xl font-bold">
-                <span>🇫🇷</span>
-                <span className="px-3 py-1 rounded-lg text-2xl font-mono"
-                  style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>
-                  {actual.home} — {actual.away}
-                </span>
-                <span>🇧🇷</span>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <div className="text-xs tracking-widest uppercase mb-3" style={{ color: "#475569" }}>Your prediction</div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium flex-1 text-right">France</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setPredicted(p => ({ ...p, home: Math.max(0, p.home - 1) }))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold transition-colors hover:bg-white/10"
-                    style={{ background: "rgba(255,255,255,0.05)" }}>−</button>
-                  <span className="w-8 text-center text-xl font-mono font-bold" style={{ color: "#60a5fa" }}>
-                    {predicted.home}
+        <div className="space-y-1.5">
+          {PAST_MATCHES.slice(0, 3).map(m => {
+            const exact = m.myPred.home === m.home.score && m.myPred.away === m.away.score;
+            const goodIssue = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
+              && (m.myPred.home !== m.myPred.away || m.home.score === m.away.score);
+            return (
+              <div key={m.id} className="flex items-center gap-3 px-2 py-1.5 rounded-lg"
+                style={{ background: "rgba(255,255,255,0.02)" }}>
+                <span className="text-[11px] w-14 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
+                <div className="flex-1 flex items-center justify-center gap-2 text-sm">
+                  <span>{m.home.flag}</span>
+                  <span className="font-mono font-bold text-xs px-2 py-0.5 rounded"
+                    style={{ background: "rgba(255,255,255,0.05)" }}>
+                    {m.home.score} – {m.away.score}
                   </span>
-                  <button onClick={() => setPredicted(p => ({ ...p, home: p.home + 1 }))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold transition-colors hover:bg-white/10"
-                    style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
+                  <span>{m.away.flag}</span>
                 </div>
-                <span style={{ color: "#334155" }}>—</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setPredicted(p => ({ ...p, away: Math.max(0, p.away - 1) }))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold transition-colors hover:bg-white/10"
-                    style={{ background: "rgba(255,255,255,0.05)" }}>−</button>
-                  <span className="w-8 text-center text-xl font-mono font-bold" style={{ color: "#60a5fa" }}>
-                    {predicted.away}
-                  </span>
-                  <button onClick={() => setPredicted(p => ({ ...p, away: p.away + 1 }))}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold transition-colors hover:bg-white/10"
-                    style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
-                </div>
-                <span className="text-sm font-medium flex-1">Brazil</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 mt-6 border-t pt-6" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-              {[
-                { label: `Base score (distance = ${distance})`, val: baseScore, color: "#3b82f6", active: true },
-                { label: "Correct outcome bonus", val: outcomeBonus, color: "#10b981", active: outcomeBonus > 0 },
-                { label: "Correct goal difference bonus", val: diffBonus, color: "#06b6d4", active: diffBonus > 0 },
-                { label: "Exact score bonus", val: exactBonus, color: "#f59e0b", active: exactBonus > 0 },
-              ].map(({ label, val, color, active: isActive }) => (
-                <div key={label} className="flex items-center gap-3">
-                  <div className="flex-1 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isActive ? color : "#1e293b" }} />
-                    <span className="text-sm" style={{ color: isActive ? "#94a3b8" : "#334155" }}>{label}</span>
+                <span className="text-[11px] flex-shrink-0" style={{ color: "#475569" }}>
+                  {m.myPred.home}-{m.myPred.away}
+                </span>
+                <div className="w-16 text-right flex-shrink-0">
+                  <div className="font-mono font-bold text-xs" style={{ color: ptColor(m.pts) }}>
+                    {m.pts > 0 ? `+${m.pts}` : "0"} pts
                   </div>
-                  <motion.span
-                    key={val}
-                    initial={{ scale: 1.3, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="text-sm font-mono font-bold"
-                    style={{ color: isActive ? color : "#1e293b" }}
-                  >
-                    +{val}
-                  </motion.span>
+                  <div className="text-[9px]" style={{ color: exact ? "#10b981" : goodIssue ? "#60a5fa" : "#475569" }}>
+                    {exact ? "Exact !" : goodIssue ? "Bonne issue" : "Raté"}
+                  </div>
                 </div>
-              ))}
-              <div className="flex items-center justify-between pt-3 border-t mt-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                <span className="text-sm font-semibold">Total for this match</span>
-                <motion.span
-                  key={total}
-                  initial={{ scale: 1.4, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="text-2xl font-bold"
-                  style={{ color: total >= 150 ? "#10b981" : total >= 100 ? "#3b82f6" : "#64748b" }}
-                >
-                  {total} pts
-                </motion.span>
               </div>
-            </div>
-          </div>
-        </Reveal>
+            );
+          })}
+        </div>
       </div>
-    </section>
+
+      {/* Next match CTA */}
+      <div className="glass rounded-xl p-4 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] mb-1" style={{ color: "#64748b" }}>Prochain à pronostiquer</div>
+          <div className="flex items-center gap-1.5 font-bold text-sm">
+            <span>🇫🇷</span> France vs Argentine <span>🇦🇷</span>
+          </div>
+          <div className="flex items-center gap-1 text-[10px] mt-0.5" style={{ color: "#f59e0b" }}>
+            <Clock size={9} /> Deadline : Sam 28 juin · 20h45
+          </div>
+        </div>
+        <motion.button onClick={onGoProno}
+          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+          className="px-4 py-2 rounded-xl text-xs font-semibold flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white" }}>
+          Pronostiquer →
+        </motion.button>
+      </div>
+    </div>
   );
 }
 
-// ─── Payout ───────────────────────────────────────────────────────────────────
+// ── Match Card ─────────────────────────────────────────────────────────────────
 
-function Payout() {
-  const [model, setModel] = useState<"A" | "B">("B");
-  const pool = 1250;
-
-  const scores = LEADERBOARD.map(p => p.pts);
-  const sumSq = scores.reduce((a, s) => a + s * s, 0);
-
-  const payouts = LEADERBOARD.map(p => ({
-    ...p,
-    modelB: Math.round((pool * p.pts * p.pts) / sumSq),
-    modelA: [500, 312, 187, 0, 0][p.rank - 1] ?? 0,
-  }));
-
-  return (
-    <section className="py-24 px-6" style={{ background: "rgba(13,17,23,0.5)" }}>
-      <div className="max-w-3xl mx-auto">
-        <Reveal>
-          <Tag>Payout Design</Tag>
-          <h2 className="mt-6 text-4xl font-bold">The maths of fair play.</h2>
-          <p className="mt-4 text-base" style={{ color: "#64748b" }}>
-            Two distribution models, one prize pool. Switch between them to see the difference.
-          </p>
-        </Reveal>
-
-        <Reveal delay={0.1} className="mt-10">
-          <div className="flex gap-3 mb-6">
-            {(["B", "A"] as const).map(m => (
-              <button key={m} onClick={() => setModel(m)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
-                style={{
-                  background: model === m ? (m === "B" ? "rgba(16,185,129,0.15)" : "rgba(59,130,246,0.15)") : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${model === m ? (m === "B" ? "rgba(16,185,129,0.4)" : "rgba(59,130,246,0.4)") : "rgba(255,255,255,0.06)"}`,
-                  color: model === m ? (m === "B" ? "#10b981" : "#60a5fa") : "#475569"
-                }}>
-                {m === "B" ? "Model B — score² distribution ★" : "Model A — ranked payout"}
-              </button>
-            ))}
-          </div>
-
-          <div className="glass rounded-xl p-4 mb-6 font-mono text-sm" style={{ color: "#06b6d4" }}>
-            {model === "B"
-              ? "payout_i = pool × score_i² / Σ(score_j²)"
-              : "1st: 40% · 2nd: 25% · 3rd: 15% · Top 25%: 20% · Others: 0"}
-          </div>
-
-          <div className="glass rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  <th className="text-left p-4 font-medium" style={{ color: "#475569" }}>#</th>
-                  <th className="text-left p-4 font-medium" style={{ color: "#475569" }}>Player</th>
-                  <th className="text-right p-4 font-medium" style={{ color: "#475569" }}>Points</th>
-                  <th className="text-right p-4 font-medium" style={{ color: "#475569" }}>Payout</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payouts.map((p, i) => (
-                  <motion.tr
-                    key={`${p.name}-${model}`}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    style={{ borderBottom: i < payouts.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}
-                  >
-                    <td className="p-4">
-                      <span className="font-bold text-xs" style={{
-                        color: p.rank === 1 ? "#f59e0b" : p.rank === 2 ? "#94a3b8" : p.rank === 3 ? "#cd7c2e" : "#334155"
-                      }}>
-                        {p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : p.rank === 3 ? "🥉" : p.rank}
-                      </span>
-                    </td>
-                    <td className="p-4 font-medium">{p.name}</td>
-                    <td className="p-4 text-right font-mono" style={{ color: "#60a5fa" }}>
-                      {p.pts.toLocaleString()}
-                    </td>
-                    <td className="p-4 text-right font-mono font-bold" style={{
-                      color: (model === "B" ? p.modelB : p.modelA) > 0 ? "#10b981" : "#334155"
-                    }}>
-                      {(model === "B" ? p.modelB : p.modelA) > 0
-                        ? `$${(model === "B" ? p.modelB : p.modelA).toLocaleString()}`
-                        : "—"}
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {model === "B" && (
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              className="mt-4 text-xs" style={{ color: "#475569" }}>
-              ★ Recommended — rewards accuracy exponentially, keeps the race interesting until the final match.
-            </motion.p>
-          )}
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-// ─── Prototype Dashboard ──────────────────────────────────────────────────────
-
-function Prototype() {
-  const [homeGoal, setHomeGoal] = useState(2);
-  const [awayGoal, setAwayGoal] = useState(1);
-  const [committed, setCommitted] = useState(false);
+function MatchCard({
+  match,
+  submitted,
+  onSubmit,
+}: {
+  match: typeof UPCOMING_MATCHES[0];
+  submitted: { home: number; away: number } | null;
+  onSubmit: (pred: { home: number; away: number }) => void;
+}) {
+  const [home, setHome] = useState(1);
+  const [away, setAway] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const handleCommit = () => {
+  const handleSubmit = () => {
     setLoading(true);
-    setTimeout(() => { setLoading(false); setCommitted(true); }, 1200);
+    setTimeout(() => { setLoading(false); onSubmit({ home, away }); }, 800);
   };
 
+  const isSubmitted = submitted !== null;
+
   return (
-    <section id="prototype" className="py-24 px-6">
-      <div className="max-w-5xl mx-auto">
-        <Reveal className="text-center mb-16">
-          <Tag>Prototype</Tag>
-          <h2 className="mt-6 text-4xl font-bold">What it feels like to play.</h2>
-        </Reveal>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <Reveal>
-              <div className="glass rounded-2xl p-5 glow-card">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs tracking-widest uppercase" style={{ color: "#475569" }}>Connected Wallet</span>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-xs" style={{ color: "#10b981" }}>Active</span>
-                  </div>
-                </div>
-                <div className="font-mono text-sm" style={{ color: "#64748b" }}>0x4f3d...a91c</div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">1,000</span>
-                  <span className="text-sm" style={{ color: "#64748b" }}>USDC</span>
-                </div>
-              </div>
-            </Reveal>
-
-            <Reveal delay={0.05}>
-              <div className="glass rounded-2xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs tracking-widest uppercase" style={{ color: "#475569" }}>League</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
-                    World Cup 2026
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: "Prize Pool", val: "1,250 USDC" },
-                    { label: "Players", val: "25 / 30" },
-                    { label: "Entry Fee", val: "50 USDC" },
-                    { label: "Matches Left", val: "12" },
-                  ].map(({ label, val }) => (
-                    <div key={label}>
-                      <div className="text-xs mb-0.5" style={{ color: "#475569" }}>{label}</div>
-                      <div className="text-sm font-semibold">{val}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Reveal>
-
-            <Reveal delay={0.1}>
-              <div className="glass rounded-2xl p-5">
-                <div className="text-xs tracking-widest uppercase mb-4" style={{ color: "#475569" }}>
-                  Next Match — France vs Brazil
-                </div>
-                <div className="text-xs mb-3" style={{ color: "#334155" }}>
-                  Deadline: 16 Jun 2026, 20:59 UTC
-                </div>
-
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="flex-1 text-center">
-                    <div className="text-xs mb-2" style={{ color: "#64748b" }}>🇫🇷 France</div>
-                    <div className="flex items-center gap-2 justify-center">
-                      <button onClick={() => setHomeGoal(g => Math.max(0, g - 1))}
-                        className="w-7 h-7 rounded-lg text-sm hover:bg-white/10 transition-colors"
-                        style={{ background: "rgba(255,255,255,0.05)" }}>−</button>
-                      <span className="w-6 text-center font-mono font-bold text-lg" style={{ color: "#60a5fa" }}>{homeGoal}</span>
-                      <button onClick={() => setHomeGoal(g => g + 1)}
-                        className="w-7 h-7 rounded-lg text-sm hover:bg-white/10 transition-colors"
-                        style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
-                    </div>
-                  </div>
-                  <span style={{ color: "#334155" }}>—</span>
-                  <div className="flex-1 text-center">
-                    <div className="text-xs mb-2" style={{ color: "#64748b" }}>Brazil 🇧🇷</div>
-                    <div className="flex items-center gap-2 justify-center">
-                      <button onClick={() => setAwayGoal(g => Math.max(0, g - 1))}
-                        className="w-7 h-7 rounded-lg text-sm hover:bg-white/10 transition-colors"
-                        style={{ background: "rgba(255,255,255,0.05)" }}>−</button>
-                      <span className="w-6 text-center font-mono font-bold text-lg" style={{ color: "#60a5fa" }}>{awayGoal}</span>
-                      <button onClick={() => setAwayGoal(g => g + 1)}
-                        className="w-7 h-7 rounded-lg text-sm hover:bg-white/10 transition-colors"
-                        style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
-                    </div>
-                  </div>
-                </div>
-
-                {!committed ? (
-                  <motion.button
-                    onClick={handleCommit}
-                    disabled={loading}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full py-3 rounded-xl text-sm font-semibold transition-all"
-                    style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", opacity: loading ? 0.7 : 1 }}
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                        />
-                        Computing keccak256 hash...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <Lock size={14} /> Commit Prediction
-                      </span>
-                    )}
-                  </motion.button>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="w-full py-3 rounded-xl text-sm font-semibold text-center"
-                    style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981" }}
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      <Check size={14} /> Hash committed on-chain
-                    </span>
-                  </motion.div>
-                )}
-
-                {committed && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="mt-3 font-mono text-[10px] p-2 rounded-lg break-all"
-                    style={{ background: "rgba(0,0,0,0.3)", color: "#334155" }}
-                  >
-                    0x8f2a3b9c1d4e7f0a2b5c8d1e4f7a0b3c6d9e2f5a8b1c4d7e0f3a6b9c2d5e8f1
-                  </motion.div>
-                )}
-              </div>
-            </Reveal>
-          </div>
-
-          <Reveal delay={0.15}>
-            <div className="glass rounded-2xl p-5 h-full">
-              <div className="flex items-center justify-between mb-5">
-                <span className="text-xs tracking-widest uppercase" style={{ color: "#475569" }}>Leaderboard</span>
-                <span className="text-xs" style={{ color: "#334155" }}>After 18 matches</span>
-              </div>
-              <div className="space-y-2">
-                {LEADERBOARD.map((p, i) => (
-                  <motion.div
-                    key={p.name}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + i * 0.08 }}
-                    className="flex items-center gap-3 p-3 rounded-xl"
-                    style={{
-                      background: p.rank === 1 ? "rgba(245,158,11,0.07)" : "rgba(255,255,255,0.02)",
-                      border: p.rank === 1 ? "1px solid rgba(245,158,11,0.15)" : "1px solid transparent"
-                    }}
-                  >
-                    <span className="text-sm w-6 text-center font-bold" style={{
-                      color: p.rank === 1 ? "#f59e0b" : p.rank === 2 ? "#94a3b8" : p.rank === 3 ? "#cd7c2e" : "#334155"
-                    }}>
-                      {p.rank}
-                    </span>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold">{p.name}</div>
-                      <div className="text-xs mt-0.5 font-mono" style={{ color: "#475569" }}>
-                        {p.pts.toLocaleString()} pts
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-mono font-bold" style={{ color: "#10b981" }}>~${p.payout}</div>
-                      <div className="text-xs mt-0.5" style={{ color: p.trend.startsWith("+") ? "#10b981" : "#ef4444" }}>
-                        {p.trend} pts
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              <div className="mt-6">
-                <div className="flex justify-between text-xs mb-1.5" style={{ color: "#475569" }}>
-                  <span>Tournament progress</span>
-                  <span>18 / 30 matches</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: "60%" }}
-                    transition={{ duration: 1.5, delay: 0.5, ease: "easeOut" }}
-                    className="h-full rounded-full"
-                    style={{ background: "linear-gradient(90deg, #3b82f6, #06b6d4)" }}
-                  />
-                </div>
-              </div>
-            </div>
-          </Reveal>
+    <div className="glass rounded-2xl p-5"
+      style={{ border: `1px solid ${isSubmitted ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.06)"}` }}>
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[10px] tracking-widest uppercase font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
+          {match.phase}
+        </span>
+        <div className="flex items-center gap-1 text-[11px]" style={{ color: "#475569" }}>
+          <Calendar size={10} /> {match.date} · {match.time}
         </div>
       </div>
-    </section>
+
+      <div className="flex items-center gap-4 my-5">
+        <div className="flex-1 text-center">
+          <div className="text-3xl mb-1.5">{match.home.flag}</div>
+          <div className="text-xs font-semibold" style={{ color: "#94a3b8" }}>{match.home.name}</div>
+        </div>
+
+        {isSubmitted ? (
+          <div className="flex items-center gap-2.5">
+            <span className="font-mono font-bold text-2xl" style={{ color: "#10b981" }}>{submitted.home}</span>
+            <span style={{ color: "#334155" }}>–</span>
+            <span className="font-mono font-bold text-2xl" style={{ color: "#10b981" }}>{submitted.away}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center gap-1">
+              <button onClick={() => setHome(h => h + 1)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
+                style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
+              <span className="font-mono font-bold text-2xl w-8 text-center" style={{ color: "#60a5fa" }}>{home}</span>
+              <button onClick={() => setHome(h => Math.max(0, h - 1))}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
+                style={{ background: "rgba(255,255,255,0.05)" }}>–</button>
+            </div>
+            <span className="font-bold text-xl" style={{ color: "#334155" }}>–</span>
+            <div className="flex flex-col items-center gap-1">
+              <button onClick={() => setAway(a => a + 1)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
+                style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
+              <span className="font-mono font-bold text-2xl w-8 text-center" style={{ color: "#60a5fa" }}>{away}</span>
+              <button onClick={() => setAway(a => Math.max(0, a - 1))}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
+                style={{ background: "rgba(255,255,255,0.05)" }}>–</button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 text-center">
+          <div className="text-3xl mb-1.5">{match.away.flag}</div>
+          <div className="text-xs font-semibold" style={{ color: "#94a3b8" }}>{match.away.name}</div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 text-[10px] mb-3" style={{ color: "#f59e0b" }}>
+        <Clock size={9} /> Deadline : {match.deadline}
+      </div>
+
+      {isSubmitted ? (
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+          className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold"
+          style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>
+          <Check size={14} /> Pronostic envoyé
+        </motion.div>
+      ) : (
+        <motion.button onClick={handleSubmit} disabled={loading}
+          whileTap={{ scale: 0.97 }}
+          className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity"
+          style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white", opacity: loading ? 0.8 : 1 }}>
+          {loading ? (
+            <>
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                className="w-4 h-4 rounded-full border-2"
+                style={{ borderColor: "rgba(255,255,255,0.3)", borderTopColor: "white" }} />
+              Envoi en cours...
+            </>
+          ) : "Valider mon prono"}
+        </motion.button>
+      )}
+    </div>
   );
 }
 
-// ─── Architecture ─────────────────────────────────────────────────────────────
+// ── Tab : Pronostics ───────────────────────────────────────────────────────────
 
-function Architecture() {
+function TabPronostics() {
+  const [view, setView] = useState<"avenir" | "termine">("avenir");
+  const [submitted, setSubmitted] = useState<Record<number, { home: number; away: number }>>({});
+
+  const remaining = UPCOMING_MATCHES.filter(m => !submitted[m.id]).length;
+
   return (
-    <section className="py-24 px-6" style={{ background: "rgba(13,17,23,0.5)" }}>
-      <div className="max-w-4xl mx-auto">
-        <Reveal className="text-center mb-16">
-          <Tag>Smart Contracts</Tag>
-          <h2 className="mt-6 text-4xl font-bold">Six modules. Zero trust.</h2>
-          <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#64748b" }}>
-            Each contract has a single responsibility. Together they form a fully autonomous prediction engine.
+    <div>
+      <div className="flex gap-2 mb-4">
+        {(["avenir", "termine"] as const).map(v => (
+          <button key={v} onClick={() => setView(v)}
+            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: view === v ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${view === v ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.06)"}`,
+              color: view === v ? "#60a5fa" : "#475569",
+            }}>
+            {v === "avenir"
+              ? `À venir${remaining > 0 ? ` · ${remaining} à faire` : " · Tous faits ✓"}`
+              : `Terminés (${PAST_MATCHES.length})`}
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {view === "avenir" ? (
+          <motion.div key="avenir" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="space-y-3">
+            {UPCOMING_MATCHES.map(m => (
+              <MatchCard key={m.id} match={m}
+                submitted={submitted[m.id] ?? null}
+                onSubmit={pred => setSubmitted(s => ({ ...s, [m.id]: pred }))} />
+            ))}
+          </motion.div>
+        ) : (
+          <motion.div key="termine" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="space-y-2">
+            {PAST_MATCHES.map(m => {
+              const exact = m.myPred.home === m.home.score && m.myPred.away === m.away.score;
+              const goodIssue = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
+                && (m.myPred.home !== m.myPred.away || m.home.score === m.away.score);
+              return (
+                <div key={m.id} className="glass rounded-xl p-4 flex items-center gap-3">
+                  <span className="text-[11px] w-14 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
+                  <div className="flex-1 flex items-center justify-center gap-2">
+                    <span className="text-xl">{m.home.flag}</span>
+                    <div className="text-center">
+                      <div className="font-mono font-bold">{m.home.score} – {m.away.score}</div>
+                      <div className="text-[10px] mt-0.5" style={{ color: "#475569" }}>
+                        Prono : {m.myPred.home}-{m.myPred.away}
+                      </div>
+                    </div>
+                    <span className="text-xl">{m.away.flag}</span>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-mono font-bold text-sm" style={{ color: ptColor(m.pts) }}>
+                      {m.pts > 0 ? `+${m.pts}` : "0"} pts
+                    </div>
+                    <div className="text-[10px] mt-0.5"
+                      style={{ color: exact ? "#10b981" : goodIssue ? "#60a5fa" : "#475569" }}>
+                      {exact ? "Exact !" : goodIssue ? "Bonne issue" : "Raté"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Tab : Classement ───────────────────────────────────────────────────────────
+
+function TabClassement() {
+  const totalSq = PLAYERS.reduce((a, p) => a + p.pts * p.pts, 0);
+
+  return (
+    <div className="glass rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 flex items-center justify-between"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <span className="text-xs font-semibold" style={{ color: "#475569" }}>Classement général</span>
+        <span className="text-xs font-mono font-bold" style={{ color: "#10b981" }}>
+          🏆 {LEAGUE.pool}€ à distribuer
+        </span>
+      </div>
+
+      <div>
+        {PLAYERS.map((p, i) => {
+          const est = Math.round((LEAGUE.pool * p.pts * p.pts) / totalSq);
+          const medal = p.rank <= 3 ? ["🥇", "🥈", "🥉"][p.rank - 1] : null;
+          return (
+            <motion.div key={p.name}
+              initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className="flex items-center gap-3 px-4 py-3"
+              style={{
+                background: p.isMe ? "rgba(59,130,246,0.06)" : "transparent",
+                borderBottom: i < PLAYERS.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none",
+              }}>
+              <div className="w-6 text-center flex-shrink-0">
+                {medal
+                  ? <span className="text-sm">{medal}</span>
+                  : <span className="text-xs font-bold" style={{ color: "#334155" }}>{p.rank}</span>}
+              </div>
+              <Avatar name={p.name} isMe={p.isMe} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold flex items-center gap-1.5">
+                  {p.name}
+                  {p.isMe && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+                      style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}>
+                      moi
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs font-mono mt-0.5" style={{ color: "#475569" }}>
+                  {p.pts.toLocaleString()} pts
+                </div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-sm font-mono font-bold" style={{ color: est > 0 ? "#10b981" : "#334155" }}>
+                  {est > 0 ? `~${est}€` : "—"}
+                </div>
+                <div className="text-[10px] mt-0.5 flex items-center justify-end gap-0.5"
+                  style={{ color: p.trend.startsWith("+") ? "#10b981" : "#ef4444" }}>
+                  {p.trend.startsWith("+")
+                    ? <TrendingUp size={9} />
+                    : <TrendingDown size={9} />}
+                  {p.trend}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <div className="px-4 py-2.5 text-[10px]"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.05)", color: "#334155" }}>
+        Gains estimés · distribution score² · recalculés après chaque match
+      </div>
+    </div>
+  );
+}
+
+// ── App Container ──────────────────────────────────────────────────────────────
+
+function AppDemo() {
+  const [tab, setTab] = useState<Tab>("ligue");
+
+  const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
+    { id: "ligue",      label: "Ma ligue",   Icon: HomeIcon },
+    { id: "pronostics", label: "Pronostics", Icon: Target  },
+    { id: "classement", label: "Classement", Icon: List    },
+  ];
+
+  return (
+    <section id="app" className="py-24 px-6">
+      <div className="max-w-2xl mx-auto">
+        <Reveal className="text-center mb-10">
+          <Tag>L'app</Tag>
+          <h2 className="mt-5 text-4xl font-bold">Interagis avec le démo.</h2>
+          <p className="mt-3 text-base" style={{ color: "#64748b" }}>
+            Ligue fictive · 10 joueurs · 200€ de cagnotte · World Cup 2026
           </p>
         </Reveal>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {CONTRACTS.map((c, i) => (
-            <Reveal key={c.name} delay={i * 0.05}>
-              <motion.div
-                whileHover={{ y: -4, boxShadow: `0 20px 40px ${c.color}15` }}
-                transition={{ duration: 0.2 }}
-                className="glass rounded-2xl p-5 h-full cursor-default"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 rounded-full" style={{ background: c.color }} />
-                  <span className="font-mono text-xs" style={{ color: c.color }}>contract</span>
+        <div className="rounded-3xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,12,22,0.8)" }}>
+          {/* App top bar */}
+          <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(59,130,246,0.2)" }}>
+                  <Zap size={11} style={{ color: "#60a5fa" }} />
                 </div>
-                <div className="font-mono text-base font-bold mb-2">{c.name}</div>
-                <div className="text-xs leading-relaxed" style={{ color: "#64748b" }}>{c.desc}</div>
+                <span className="font-bold text-sm">ScoreVault</span>
+              </div>
+              <Avatar name={MY_NAME} isMe />
+            </div>
+
+            <LeagueHeader />
+
+            {/* Tabs */}
+            <div className="flex gap-1 p-1 rounded-xl"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              {TABS.map(({ id, label, Icon }) => (
+                <button key={id} onClick={() => setTab(id)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200"
+                  style={{
+                    background: tab === id ? "rgba(59,130,246,0.15)" : "transparent",
+                    color: tab === id ? "#60a5fa" : "#475569",
+                    border: tab === id ? "1px solid rgba(59,130,246,0.25)" : "1px solid transparent",
+                  }}>
+                  <Icon size={11} /> {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab content */}
+          <div className="p-4">
+            <AnimatePresence mode="wait">
+              <motion.div key={tab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.22 }}>
+                {tab === "ligue"      && <TabLigue onGoProno={() => setTab("pronostics")} />}
+                {tab === "pronostics" && <TabPronostics />}
+                {tab === "classement" && <TabClassement />}
               </motion.div>
-            </Reveal>
-          ))}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-// ─── Research ─────────────────────────────────────────────────────────────────
+// ─── How It Works ──────────────────────────────────────────────────────────────
 
-function Research() {
+function HowItWorks() {
+  const steps = [
+    {
+      emoji: "👥",
+      title: "1. Crée ta ligue",
+      desc: "Donne un nom, fixe la mise (ex: 20€/pote) et partage le code d'invitation. La cagnotte se constitue automatiquement.",
+      color: "#3b82f6",
+    },
+    {
+      emoji: "⚽",
+      title: "2. Pronostique les scores",
+      desc: "Avant chaque match, tu soumets ton score prédit. Deadline 15 min avant le coup d'envoi. Impossible de tricher.",
+      color: "#8b5cf6",
+    },
+    {
+      emoji: "🏆",
+      title: "3. Suis le classement live",
+      desc: "Les points se calculent après chaque match. À la fin du tournoi, la cagnotte se redistribue selon la précision de chacun.",
+      color: "#10b981",
+    },
+  ];
+
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-2xl mx-auto">
-        <Reveal>
-          <Tag>Open Questions</Tag>
-          <h2 className="mt-6 text-4xl font-bold">
-            This is research.<br />Not all answers exist yet.
+    <section id="comment" className="py-24 px-6" style={{ background: "rgba(13,17,23,0.5)" }}>
+      <div className="max-w-3xl mx-auto">
+        <Reveal className="text-center mb-12">
+          <Tag>Comment ça marche</Tag>
+          <h2 className="mt-5 text-4xl font-bold">
+            Simple comme MPG.<br />
+            <span className="gradient-text">Avec de l'enjeu en plus.</span>
           </h2>
         </Reveal>
-        <div className="mt-10 space-y-4">
-          {RESEARCH_QS.map((q, i) => (
-            <Reveal key={i} delay={i * 0.07}>
-              <div className="flex gap-4 p-4 rounded-xl transition-colors hover:bg-white/[0.02]"
-                style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="mt-0.5 text-xs font-mono font-bold w-5 flex-shrink-0" style={{ color: "#3b82f6" }}>
-                  {String(i + 1).padStart(2, "0")}
-                </div>
-                <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>{q}</p>
+
+        <div className="grid sm:grid-cols-3 gap-4">
+          {steps.map((s, i) => (
+            <Reveal key={s.title} delay={i * 0.1}>
+              <div className="glass rounded-2xl p-6 h-full glow-card">
+                <div className="text-3xl mb-4">{s.emoji}</div>
+                <div className="font-bold mb-2 text-sm" style={{ color: s.color }}>{s.title}</div>
+                <div className="text-sm leading-relaxed" style={{ color: "#64748b" }}>{s.desc}</div>
               </div>
             </Reveal>
           ))}
         </div>
+
+        <Reveal delay={0.35} className="mt-6">
+          <div className="rounded-2xl p-5"
+            style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
+            <div className="flex items-start gap-3">
+              <Shield size={15} style={{ color: "#60a5fa", flexShrink: 0, marginTop: 1 }} />
+              <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
+                <span style={{ color: "#60a5fa", fontWeight: 600 }}>Barème :</span>{" "}
+                Score exact → <strong style={{ color: "#f1f5f9" }}>200 pts</strong> ·
+                Bonne issue + bon écart → <strong style={{ color: "#f1f5f9" }}>150 pts</strong> ·
+                Bonne issue → <strong style={{ color: "#f1f5f9" }}>130 pts</strong>.
+                {" "}La cagnotte se distribue au prorata des points au carré — tu restes dans la course jusqu'au dernier sifflet.
+              </p>
+            </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
+// ─── Footer ────────────────────────────────────────────────────────────────────
 
 function Footer() {
   return (
-    <footer className="py-16 px-6 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-      <div className="max-w-2xl mx-auto text-center">
-        <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full"
-          style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.15)" }}>
-          <AlertCircle size={12} style={{ color: "#eab308" }} />
-          <span className="text-xs font-medium" style={{ color: "#eab308" }}>Research Prototype</span>
-        </div>
-        <p className="text-sm leading-relaxed mb-8" style={{ color: "#475569" }}>
-          ScoreVault is a research prototype. It is not a public gambling product, not available for
-          real-money use, and should be tested only on testnets or with non-transferable points unless
-          proper legal approvals are obtained.
-        </p>
-        <div className="flex items-center justify-center gap-2 mb-6">
+    <footer className="py-12 px-6" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+      <div className="max-w-sm mx-auto text-center">
+        <div className="flex items-center justify-center gap-2 mb-3">
           <div className="w-6 h-6 rounded-lg flex items-center justify-center"
             style={{ background: "rgba(59,130,246,0.15)" }}>
-            <Zap size={12} style={{ color: "#60a5fa" }} />
+            <Zap size={11} style={{ color: "#60a5fa" }} />
           </div>
-          <span className="font-bold tracking-tight">ScoreVault</span>
+          <span className="font-bold text-sm">ScoreVault</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
+            BETA
+          </span>
         </div>
-        <p className="text-xs" style={{ color: "#1e293b" }}>
-          This project explores the technical design space of on-chain prediction competitions.
-          Any real-money deployment would require a full legal review and appropriate regulatory approvals.
+        <p className="text-xs" style={{ color: "#334155" }}>
+          Beta fermée · FIFA World Cup 2026 · Données fictives — démo uniquement
         </p>
       </div>
     </footer>
   );
 }
 
-// ─── Nav ──────────────────────────────────────────────────────────────────────
-
-function Nav() {
-  const { scrollY } = useScroll();
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    return scrollY.on("change", v => setScrolled(v > 40));
-  }, [scrollY]);
-
-  return (
-    <motion.nav
-      className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between transition-all duration-300"
-      style={{
-        background: scrolled ? "rgba(5,8,16,0.85)" : "transparent",
-        backdropFilter: scrolled ? "blur(20px)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "1px solid transparent",
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: "rgba(59,130,246,0.15)" }}>
-          <Zap size={13} style={{ color: "#60a5fa" }} />
-        </div>
-        <span className="font-bold text-sm tracking-tight">ScoreVault</span>
-      </div>
-      <div className="hidden sm:flex items-center gap-6 text-xs" style={{ color: "#475569" }}>
-        <a href="#mechanism" className="hover:text-white transition-colors">Mechanism</a>
-        <a href="#prototype" className="hover:text-white transition-colors">Prototype</a>
-        <a href="#" className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
-          Research
-        </a>
-      </div>
-    </motion.nav>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Home() {
   return (
     <main>
       <Nav />
       <Hero />
-      <WhatIsThis />
-      <Problem />
-      <Mechanism />
-      <ScoringEngine />
-      <Payout />
-      <Prototype />
-      <Architecture />
-      <Research />
+      <AppDemo />
+      <HowItWorks />
       <Footer />
     </main>
   );
