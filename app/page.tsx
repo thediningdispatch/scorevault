@@ -11,15 +11,16 @@ import {
 import {
   Trophy, Users, Calendar, Clock,
   Check, Star, TrendingUp, TrendingDown, ArrowRight,
-  Zap, Shield, BarChart3, Home as HomeIcon, Target, List, Coins,
+  Zap, Shield, BarChart3, Home as HomeIcon, Target, List,
+  Lock, Cpu, Eye, DollarSign,
 } from "lucide-react";
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 
-const MY_NAME = "Jules";
+const MY_NAME = "Jake";
 
 const LEAGUE = {
-  name: "Les Potes du 75",
+  name: "NYC World Cup Crew",
   pool: 200,
   entry: 20,
   playerCount: 10,
@@ -30,73 +31,73 @@ const LEAGUE = {
 };
 
 const PLAYERS = [
-  { rank: 1, name: "Vianney", pts: 1840, trend: "+12", isMe: false },
-  { rank: 2, name: "Jules",   pts: 1720, trend: "+8",  isMe: true  },
-  { rank: 3, name: "Chloé",   pts: 1610, trend: "+5",  isMe: false },
-  { rank: 4, name: "Thomas",  pts: 1420, trend: "-2",  isMe: false },
-  { rank: 5, name: "Mehdi",   pts: 1350, trend: "-4",  isMe: false },
-  { rank: 6, name: "Sarah",   pts: 1180, trend: "-6",  isMe: false },
-  { rank: 7, name: "Axel",    pts: 1050, trend: "-3",  isMe: false },
-  { rank: 8, name: "Lucas",   pts:  890, trend: "-8",  isMe: false },
-  { rank: 9, name: "Emma",    pts:  740, trend: "-2",  isMe: false },
-  { rank: 10, name: "Romain", pts:  610, trend: "-11", isMe: false },
+  { rank: 1,  name: "Tyler",  pts: 1840, trend: "+12", isMe: false },
+  { rank: 2,  name: "Jake",   pts: 1720, trend: "+8",  isMe: true  },
+  { rank: 3,  name: "Sarah",  pts: 1610, trend: "+5",  isMe: false },
+  { rank: 4,  name: "Mike",   pts: 1420, trend: "-2",  isMe: false },
+  { rank: 5,  name: "Emma",   pts: 1350, trend: "-4",  isMe: false },
+  { rank: 6,  name: "Chris",  pts: 1180, trend: "-6",  isMe: false },
+  { rank: 7,  name: "Zara",   pts: 1050, trend: "-3",  isMe: false },
+  { rank: 8,  name: "Marcus", pts:  890, trend: "-8",  isMe: false },
+  { rank: 9,  name: "Lily",   pts:  740, trend: "-2",  isMe: false },
+  { rank: 10, name: "Kai",    pts:  610, trend: "-11", isMe: false },
 ];
 
 const UPCOMING_MATCHES = [
   {
     id: 1,
-    home: { name: "France",   flag: "🇫🇷" },
-    away: { name: "Argentine",flag: "🇦🇷" },
-    date: "Sam 28 juin", time: "21:00",
-    phase: "Huitièmes de finale",
-    deadline: "Sam 28 juin · 20h45",
+    home: { name: "France",    flag: "🇫🇷" },
+    away: { name: "Argentina", flag: "🇦🇷" },
+    date: "Sat Jun 28", time: "9:00 PM",
+    phase: "Round of 16",
+    deadline: "Sat Jun 28 · 8:45 PM",
   },
   {
     id: 2,
-    home: { name: "Brésil",    flag: "🇧🇷" },
-    away: { name: "Allemagne", flag: "🇩🇪" },
-    date: "Dim 29 juin", time: "18:00",
-    phase: "Huitièmes de finale",
-    deadline: "Dim 29 juin · 17h45",
+    home: { name: "Brazil",  flag: "🇧🇷" },
+    away: { name: "Germany", flag: "🇩🇪" },
+    date: "Sun Jun 29", time: "6:00 PM",
+    phase: "Round of 16",
+    deadline: "Sun Jun 29 · 5:45 PM",
   },
   {
     id: 3,
-    home: { name: "Espagne",   flag: "🇪🇸" },
-    away: { name: "Angleterre",flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
-    date: "Lun 30 juin", time: "21:00",
-    phase: "Huitièmes de finale",
-    deadline: "Lun 30 juin · 20h45",
+    home: { name: "Spain",   flag: "🇪🇸" },
+    away: { name: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+    date: "Mon Jun 30", time: "9:00 PM",
+    phase: "Round of 16",
+    deadline: "Mon Jun 30 · 8:45 PM",
   },
 ];
 
 const PAST_MATCHES = [
   {
     id: 10,
-    home: { name: "France",   flag: "🇫🇷", score: 2 },
-    away: { name: "Belgique", flag: "🇧🇪", score: 1 },
+    home: { name: "France",  flag: "🇫🇷", score: 2 },
+    away: { name: "Belgium", flag: "🇧🇪", score: 1 },
     myPred: { home: 2, away: 0 },
-    pts: 130, date: "12 juin",
+    pts: 130, date: "Jun 12",
   },
   {
     id: 11,
-    home: { name: "Argentine", flag: "🇦🇷", score: 2 },
-    away: { name: "Pologne",   flag: "🇵🇱", score: 1 },
+    home: { name: "Argentina", flag: "🇦🇷", score: 2 },
+    away: { name: "Poland",    flag: "🇵🇱", score: 1 },
     myPred: { home: 2, away: 1 },
-    pts: 200, date: "13 juin",
+    pts: 200, date: "Jun 13",
   },
   {
     id: 12,
-    home: { name: "Espagne", flag: "🇪🇸", score: 3 },
-    away: { name: "Suisse",  flag: "🇨🇭", score: 0 },
+    home: { name: "Spain",       flag: "🇪🇸", score: 3 },
+    away: { name: "Switzerland", flag: "🇨🇭", score: 0 },
     myPred: { home: 2, away: 0 },
-    pts: 80, date: "14 juin",
+    pts: 80, date: "Jun 14",
   },
   {
     id: 13,
-    home: { name: "Brésil", flag: "🇧🇷", score: 1 },
-    away: { name: "Mexique",flag: "🇲🇽", score: 1 },
+    home: { name: "Brazil", flag: "🇧🇷", score: 1 },
+    away: { name: "Mexico", flag: "🇲🇽", score: 1 },
     myPred: { home: 2, away: 0 },
-    pts: 0, date: "16 juin",
+    pts: 0, date: "Jun 16",
   },
 ];
 
@@ -174,7 +175,7 @@ function Nav() {
         <span className="font-bold text-sm tracking-tight">ScoreVault</span>
         <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
           style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
-          BETA
+          TESTNET
         </span>
       </div>
       <div className="flex items-center gap-3">
@@ -184,7 +185,7 @@ function Nav() {
         <a href="#app"
           className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 hover:-translate-y-px"
           style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white" }}>
-          Voir l'app
+          Try the demo
         </a>
       </div>
     </motion.nav>
@@ -217,24 +218,33 @@ function Hero() {
       <motion.div style={{ y, opacity }} className="relative z-10 text-center max-w-4xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
           className="mb-5">
-          <Tag>⚽ FIFA World Cup 2026 · Beta fermée</Tag>
+          <Tag>⚽ FIFA World Cup 2026 · On-chain beta</Tag>
         </motion.div>
 
         <motion.h1
           initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           className="text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.06] tracking-tight mb-6">
-          Les pronostics foot<br />
-          <span className="gradient-text">avec de l'argent sur la table.</span>
+          The friend league<br />
+          <span className="gradient-text">that runs itself.</span>
         </motion.h1>
 
         <motion.p
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-lg md:text-xl max-w-xl mx-auto mb-10 leading-relaxed"
+          className="text-lg md:text-xl max-w-2xl mx-auto mb-4 leading-relaxed"
           style={{ color: "#94a3b8" }}>
-          Crée une ligue avec tes potes, mettez une mise, pronostiquez les scores.
-          Le meilleur pronostiqueur rafle la cagnotte.
+          Score predictions. Prize pool locked on-chain. Payouts automatic.
+          <strong style={{ color: "#f1f5f9" }}> No commissioner. No Venmo. No trust required.</strong>
+        </motion.p>
+
+        <motion.p
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.25 }}
+          className="text-sm max-w-xl mx-auto mb-10"
+          style={{ color: "#475569" }}>
+          Think March Madness bracket pool — except a smart contract holds the money, calculates every score,
+          and distributes winnings the moment the final whistle blows. Zero human intervention.
         </motion.p>
 
         <motion.div
@@ -244,12 +254,12 @@ function Hero() {
           <a href="#app"
             className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 hover:-translate-y-0.5"
             style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)" }}>
-            Voir le démo <ArrowRight size={15} />
+            Try the demo <ArrowRight size={15} />
           </a>
-          <a href="#comment"
+          <a href="#onchain"
             className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0" }}>
-            Comment ça marche
+            Why on-chain?
           </a>
         </motion.div>
 
@@ -258,9 +268,9 @@ function Hero() {
           transition={{ duration: 0.5, delay: 0.45 }}
           className="mt-16 grid grid-cols-3 gap-6 max-w-sm mx-auto">
           {[
-            { val: "200€", label: "Cagnotte moyenne" },
-            { val: "10",   label: "Potes par ligue"  },
-            { val: "46",   label: "Matchs / tournoi" },
+            { val: "$200",  label: "Avg prize pool"   },
+            { val: "10",    label: "Friends per league" },
+            { val: "100%",  label: "Automated"          },
           ].map(({ val, label }) => (
             <div key={label} className="text-center">
               <div className="text-2xl font-bold" style={{ color: "#60a5fa" }}>{val}</div>
@@ -282,9 +292,93 @@ function Hero() {
   );
 }
 
+// ─── Why On-Chain ──────────────────────────────────────────────────────────────
+
+function OnChain() {
+  const PILLARS = [
+    {
+      icon: Lock,
+      color: "#3b82f6",
+      title: "No one holds the money",
+      body: "Every ESPN bracket pool has the same problem: someone has to hold the cash. That someone can lose it, forget to pay out, or just disappear. With ScoreVault, funds are locked in a smart contract the moment the league starts. Nobody — including us — can touch them.",
+    },
+    {
+      icon: Cpu,
+      color: "#8b5cf6",
+      title: "Scores calculated on-chain",
+      body: "No black box, no dispute with the commissioner. The scoring formula lives in code, deployed on-chain, publicly readable. When a match ends, an oracle posts the official result and the contract runs the math. Immutable, verifiable, final.",
+    },
+    {
+      icon: DollarSign,
+      color: "#10b981",
+      title: "Payouts are automatic",
+      body: "When the tournament ends, the contract distributes. No waiting on Venmo requests. No chasing the group chat. No one needs to 'do the math.' The smart contract already did — proportionally to every player's accuracy across all matches.",
+    },
+    {
+      icon: Eye,
+      color: "#06b6d4",
+      title: "Play with anyone",
+      body: "Because trust is replaced by code, you're not limited to your inner circle. City-wide leagues, workplace competitions, Twitter communities — anyone can join without anyone needing to vouch for the prize manager. The contract is the referee.",
+    },
+  ];
+
+  return (
+    <section id="onchain" className="py-24 px-6" style={{ background: "rgba(13,17,23,0.6)" }}>
+      <div className="max-w-4xl mx-auto">
+        <Reveal className="text-center mb-16">
+          <Tag>Why on-chain</Tag>
+          <h2 className="mt-5 text-4xl font-bold leading-tight">
+            Zero human intervention.<br />
+            <span className="gradient-text">From deposit to payout.</span>
+          </h2>
+          <p className="mt-4 text-base max-w-2xl mx-auto" style={{ color: "#64748b" }}>
+            Blockchain isn't the product. It's the infrastructure that makes the product trustless.
+            Here's what that means in practice.
+          </p>
+        </Reveal>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          {PILLARS.map(({ icon: Icon, color, title, body }, i) => (
+            <Reveal key={title} delay={i * 0.08}>
+              <motion.div
+                whileHover={{ y: -3 }}
+                transition={{ duration: 0.2 }}
+                className="glass rounded-2xl p-6 h-full glow-card">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 flex-shrink-0"
+                  style={{ background: `${color}18` }}>
+                  <Icon size={18} style={{ color }} />
+                </div>
+                <div className="font-bold text-base mb-2">{title}</div>
+                <div className="text-sm leading-relaxed" style={{ color: "#64748b" }}>{body}</div>
+              </motion.div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal delay={0.4} className="mt-8">
+          <div className="rounded-2xl p-5 flex items-start gap-4"
+            style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
+            <Shield size={16} style={{ color: "#10b981", flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div className="text-sm font-semibold mb-1" style={{ color: "#10b981" }}>
+                Currently running on testnet
+              </div>
+              <p className="text-sm leading-relaxed" style={{ color: "#64748b" }}>
+                ScoreVault is in open beta on Ethereum testnet — no real funds at risk.
+                We're stress-testing the contracts, the oracle integration, and the scoring engine
+                before a mainnet launch. All the mechanics are live. The money isn't real yet.
+              </p>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 // ─── App Demo ──────────────────────────────────────────────────────────────────
 
-type Tab = "ligue" | "pronostics" | "classement";
+type Tab = "league" | "predictions" | "leaderboard";
 
 function LeagueHeader() {
   const pct = (LEAGUE.doneMatches / LEAGUE.totalMatches) * 100;
@@ -297,18 +391,22 @@ function LeagueHeader() {
             <Trophy size={13} style={{ color: "#f59e0b" }} />
             <span className="font-bold text-sm">{LEAGUE.name}</span>
           </div>
-          <div className="text-[11px]" style={{ color: "#64748b" }}>⚽ FIFA World Cup 2026</div>
+          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "#64748b" }}>
+            <Lock size={9} style={{ color: "#10b981" }} />
+            <span style={{ color: "#10b981" }}>On-chain · </span>
+            ⚽ FIFA World Cup 2026
+          </div>
         </div>
         <div className="text-right">
-          <div className="text-xl font-bold" style={{ color: "#10b981" }}>{LEAGUE.pool}€</div>
-          <div className="text-[10px]" style={{ color: "#475569" }}>cagnotte totale</div>
+          <div className="text-xl font-bold" style={{ color: "#10b981" }}>${LEAGUE.pool}</div>
+          <div className="text-[10px]" style={{ color: "#475569" }}>locked in contract</div>
         </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <div className="flex justify-between text-[10px] mb-1" style={{ color: "#475569" }}>
-            <span>{LEAGUE.doneMatches} matchs joués</span>
-            <span>{LEAGUE.totalMatches - LEAGUE.doneMatches} restants</span>
+            <span>{LEAGUE.doneMatches} matches played</span>
+            <span>{LEAGUE.totalMatches - LEAGUE.doneMatches} remaining</span>
           </div>
           <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
             <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
@@ -319,27 +417,26 @@ function LeagueHeader() {
         </div>
         <div className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full flex-shrink-0"
           style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
-          <Users size={10} /> {LEAGUE.playerCount} joueurs
+          <Users size={10} /> {LEAGUE.playerCount} players
         </div>
       </div>
     </div>
   );
 }
 
-// ── Tab : Ma Ligue ─────────────────────────────────────────────────────────────
+// ── Tab: My League ─────────────────────────────────────────────────────────────
 
-function TabLigue({ onGoProno }: { onGoProno: () => void }) {
+function TabLeague({ onGoPredict }: { onGoPredict: () => void }) {
   const totalSq = PLAYERS.reduce((a, p) => a + p.pts * p.pts, 0);
   const myEst = Math.round((LEAGUE.pool * LEAGUE.myPts * LEAGUE.myPts) / totalSq);
 
   return (
     <div className="space-y-3">
-      {/* My stats */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: "Mon rang",    val: `#${LEAGUE.myRank}`,                  color: "#f59e0b", Icon: Trophy },
-          { label: "Mes points",  val: LEAGUE.myPts.toLocaleString(),         color: "#60a5fa", Icon: Star   },
-          { label: "Gain estimé", val: `~${myEst}€`,                          color: "#10b981", Icon: Coins  },
+          { label: "My rank",     val: `#${LEAGUE.myRank}`,           color: "#f59e0b", Icon: Trophy       },
+          { label: "My points",   val: LEAGUE.myPts.toLocaleString(), color: "#60a5fa", Icon: Star         },
+          { label: "Est. payout", val: `~$${myEst}`,                  color: "#10b981", Icon: DollarSign   },
         ].map(({ label, val, color, Icon }) => (
           <div key={label} className="glass rounded-xl p-3 text-center">
             <Icon size={13} style={{ color }} className="mx-auto mb-1.5" />
@@ -349,20 +446,19 @@ function TabLigue({ onGoProno }: { onGoProno: () => void }) {
         ))}
       </div>
 
-      {/* Recent results */}
       <div className="glass rounded-2xl p-4">
         <div className="flex items-center gap-1.5 mb-3 text-[11px] font-semibold" style={{ color: "#475569" }}>
-          <BarChart3 size={11} /> Mes derniers matchs
+          <BarChart3 size={11} /> Recent matches
         </div>
         <div className="space-y-1.5">
           {PAST_MATCHES.slice(0, 3).map(m => {
             const exact = m.myPred.home === m.home.score && m.myPred.away === m.away.score;
-            const goodIssue = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
+            const goodOutcome = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
               && (m.myPred.home !== m.myPred.away || m.home.score === m.away.score);
             return (
               <div key={m.id} className="flex items-center gap-3 px-2 py-1.5 rounded-lg"
                 style={{ background: "rgba(255,255,255,0.02)" }}>
-                <span className="text-[11px] w-14 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
+                <span className="text-[11px] w-12 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
                 <div className="flex-1 flex items-center justify-center gap-2 text-sm">
                   <span>{m.home.flag}</span>
                   <span className="font-mono font-bold text-xs px-2 py-0.5 rounded"
@@ -372,14 +468,15 @@ function TabLigue({ onGoProno }: { onGoProno: () => void }) {
                   <span>{m.away.flag}</span>
                 </div>
                 <span className="text-[11px] flex-shrink-0" style={{ color: "#475569" }}>
-                  {m.myPred.home}-{m.myPred.away}
+                  Pick: {m.myPred.home}-{m.myPred.away}
                 </span>
                 <div className="w-16 text-right flex-shrink-0">
                   <div className="font-mono font-bold text-xs" style={{ color: ptColor(m.pts) }}>
                     {m.pts > 0 ? `+${m.pts}` : "0"} pts
                   </div>
-                  <div className="text-[9px]" style={{ color: exact ? "#10b981" : goodIssue ? "#60a5fa" : "#475569" }}>
-                    {exact ? "Exact !" : goodIssue ? "Bonne issue" : "Raté"}
+                  <div className="text-[9px]"
+                    style={{ color: exact ? "#10b981" : goodOutcome ? "#60a5fa" : "#475569" }}>
+                    {exact ? "Exact!" : goodOutcome ? "Good call" : "Missed"}
                   </div>
                 </div>
               </div>
@@ -388,22 +485,21 @@ function TabLigue({ onGoProno }: { onGoProno: () => void }) {
         </div>
       </div>
 
-      {/* Next match CTA */}
       <div className="glass rounded-xl p-4 flex items-center justify-between gap-3">
         <div>
-          <div className="text-[11px] mb-1" style={{ color: "#64748b" }}>Prochain à pronostiquer</div>
+          <div className="text-[11px] mb-1" style={{ color: "#64748b" }}>Next pick due</div>
           <div className="flex items-center gap-1.5 font-bold text-sm">
-            <span>🇫🇷</span> France vs Argentine <span>🇦🇷</span>
+            <span>🇫🇷</span> France vs Argentina <span>🇦🇷</span>
           </div>
           <div className="flex items-center gap-1 text-[10px] mt-0.5" style={{ color: "#f59e0b" }}>
-            <Clock size={9} /> Deadline : Sam 28 juin · 20h45
+            <Clock size={9} /> Locks: Sat Jun 28 · 8:45 PM
           </div>
         </div>
-        <motion.button onClick={onGoProno}
+        <motion.button onClick={onGoPredict}
           whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
           className="px-4 py-2 rounded-xl text-xs font-semibold flex-shrink-0"
           style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white" }}>
-          Pronostiquer →
+          Pick now →
         </motion.button>
       </div>
     </div>
@@ -430,11 +526,9 @@ function MatchCard({
     setTimeout(() => { setLoading(false); onSubmit({ home, away }); }, 800);
   };
 
-  const isSubmitted = submitted !== null;
-
   return (
     <div className="glass rounded-2xl p-5"
-      style={{ border: `1px solid ${isSubmitted ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.06)"}` }}>
+      style={{ border: `1px solid ${submitted ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.06)"}` }}>
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] tracking-widest uppercase font-semibold px-2 py-0.5 rounded-full"
           style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
@@ -451,7 +545,7 @@ function MatchCard({
           <div className="text-xs font-semibold" style={{ color: "#94a3b8" }}>{match.home.name}</div>
         </div>
 
-        {isSubmitted ? (
+        {submitted ? (
           <div className="flex items-center gap-2.5">
             <span className="font-mono font-bold text-2xl" style={{ color: "#10b981" }}>{submitted.home}</span>
             <span style={{ color: "#334155" }}>–</span>
@@ -488,18 +582,17 @@ function MatchCard({
       </div>
 
       <div className="flex items-center gap-1.5 text-[10px] mb-3" style={{ color: "#f59e0b" }}>
-        <Clock size={9} /> Deadline : {match.deadline}
+        <Clock size={9} /> Locks: {match.deadline}
       </div>
 
-      {isSubmitted ? (
+      {submitted ? (
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
           className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold"
           style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>
-          <Check size={14} /> Pronostic envoyé
+          <Check size={14} /> Pick submitted on-chain
         </motion.div>
       ) : (
-        <motion.button onClick={handleSubmit} disabled={loading}
-          whileTap={{ scale: 0.97 }}
+        <motion.button onClick={handleSubmit} disabled={loading} whileTap={{ scale: 0.97 }}
           className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity"
           style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white", opacity: loading ? 0.8 : 1 }}>
           {loading ? (
@@ -507,27 +600,26 @@ function MatchCard({
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                 className="w-4 h-4 rounded-full border-2"
                 style={{ borderColor: "rgba(255,255,255,0.3)", borderTopColor: "white" }} />
-              Envoi en cours...
+              Submitting...
             </>
-          ) : "Valider mon prono"}
+          ) : "Lock in my pick"}
         </motion.button>
       )}
     </div>
   );
 }
 
-// ── Tab : Pronostics ───────────────────────────────────────────────────────────
+// ── Tab: Predictions ───────────────────────────────────────────────────────────
 
-function TabPronostics() {
-  const [view, setView] = useState<"avenir" | "termine">("avenir");
+function TabPredictions() {
+  const [view, setView] = useState<"upcoming" | "past">("upcoming");
   const [submitted, setSubmitted] = useState<Record<number, { home: number; away: number }>>({});
-
   const remaining = UPCOMING_MATCHES.filter(m => !submitted[m.id]).length;
 
   return (
     <div>
       <div className="flex gap-2 mb-4">
-        {(["avenir", "termine"] as const).map(v => (
+        {(["upcoming", "past"] as const).map(v => (
           <button key={v} onClick={() => setView(v)}
             className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
             style={{
@@ -535,16 +627,16 @@ function TabPronostics() {
               border: `1px solid ${view === v ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.06)"}`,
               color: view === v ? "#60a5fa" : "#475569",
             }}>
-            {v === "avenir"
-              ? `À venir${remaining > 0 ? ` · ${remaining} à faire` : " · Tous faits ✓"}`
-              : `Terminés (${PAST_MATCHES.length})`}
+            {v === "upcoming"
+              ? `Upcoming${remaining > 0 ? ` · ${remaining} to pick` : " · All done ✓"}`
+              : `Results (${PAST_MATCHES.length})`}
           </button>
         ))}
       </div>
 
       <AnimatePresence mode="wait">
-        {view === "avenir" ? (
-          <motion.div key="avenir" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        {view === "upcoming" ? (
+          <motion.div key="upcoming" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="space-y-3">
             {UPCOMING_MATCHES.map(m => (
               <MatchCard key={m.id} match={m}
@@ -553,21 +645,21 @@ function TabPronostics() {
             ))}
           </motion.div>
         ) : (
-          <motion.div key="termine" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div key="past" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="space-y-2">
             {PAST_MATCHES.map(m => {
               const exact = m.myPred.home === m.home.score && m.myPred.away === m.away.score;
-              const goodIssue = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
+              const goodOutcome = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
                 && (m.myPred.home !== m.myPred.away || m.home.score === m.away.score);
               return (
                 <div key={m.id} className="glass rounded-xl p-4 flex items-center gap-3">
-                  <span className="text-[11px] w-14 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
+                  <span className="text-[11px] w-12 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
                   <div className="flex-1 flex items-center justify-center gap-2">
                     <span className="text-xl">{m.home.flag}</span>
                     <div className="text-center">
                       <div className="font-mono font-bold">{m.home.score} – {m.away.score}</div>
                       <div className="text-[10px] mt-0.5" style={{ color: "#475569" }}>
-                        Prono : {m.myPred.home}-{m.myPred.away}
+                        Pick: {m.myPred.home}-{m.myPred.away}
                       </div>
                     </div>
                     <span className="text-xl">{m.away.flag}</span>
@@ -577,8 +669,8 @@ function TabPronostics() {
                       {m.pts > 0 ? `+${m.pts}` : "0"} pts
                     </div>
                     <div className="text-[10px] mt-0.5"
-                      style={{ color: exact ? "#10b981" : goodIssue ? "#60a5fa" : "#475569" }}>
-                      {exact ? "Exact !" : goodIssue ? "Bonne issue" : "Raté"}
+                      style={{ color: exact ? "#10b981" : goodOutcome ? "#60a5fa" : "#475569" }}>
+                      {exact ? "Exact!" : goodOutcome ? "Good call" : "Missed"}
                     </div>
                   </div>
                 </div>
@@ -591,25 +683,24 @@ function TabPronostics() {
   );
 }
 
-// ── Tab : Classement ───────────────────────────────────────────────────────────
+// ── Tab: Leaderboard ───────────────────────────────────────────────────────────
 
-function TabClassement() {
+function TabLeaderboard() {
   const totalSq = PLAYERS.reduce((a, p) => a + p.pts * p.pts, 0);
 
   return (
     <div className="glass rounded-2xl overflow-hidden">
       <div className="px-4 py-3 flex items-center justify-between"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-        <span className="text-xs font-semibold" style={{ color: "#475569" }}>Classement général</span>
-        <span className="text-xs font-mono font-bold" style={{ color: "#10b981" }}>
-          🏆 {LEAGUE.pool}€ à distribuer
+        <span className="text-xs font-semibold" style={{ color: "#475569" }}>Leaderboard</span>
+        <span className="text-xs font-mono font-bold flex items-center gap-1" style={{ color: "#10b981" }}>
+          <Lock size={9} /> ${LEAGUE.pool} locked
         </span>
       </div>
-
       <div>
         {PLAYERS.map((p, i) => {
           const est = Math.round((LEAGUE.pool * p.pts * p.pts) / totalSq);
-          const medal = p.rank <= 3 ? ["🥇", "🥈", "🥉"][p.rank - 1] : null;
+          const medal = p.rank <= 3 ? ["🥇","🥈","🥉"][p.rank - 1] : null;
           return (
             <motion.div key={p.name}
               initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
@@ -631,7 +722,7 @@ function TabClassement() {
                   {p.isMe && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full"
                       style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}>
-                      moi
+                      you
                     </span>
                   )}
                 </div>
@@ -641,13 +732,11 @@ function TabClassement() {
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="text-sm font-mono font-bold" style={{ color: est > 0 ? "#10b981" : "#334155" }}>
-                  {est > 0 ? `~${est}€` : "—"}
+                  {est > 0 ? `~$${est}` : "—"}
                 </div>
                 <div className="text-[10px] mt-0.5 flex items-center justify-end gap-0.5"
                   style={{ color: p.trend.startsWith("+") ? "#10b981" : "#ef4444" }}>
-                  {p.trend.startsWith("+")
-                    ? <TrendingUp size={9} />
-                    : <TrendingDown size={9} />}
+                  {p.trend.startsWith("+") ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
                   {p.trend}
                 </div>
               </div>
@@ -655,10 +744,9 @@ function TabClassement() {
           );
         })}
       </div>
-
       <div className="px-4 py-2.5 text-[10px]"
         style={{ borderTop: "1px solid rgba(255,255,255,0.05)", color: "#334155" }}>
-        Gains estimés · distribution score² · recalculés après chaque match
+        Est. payouts · score² distribution · recalculated after every match · auto-distributed at final whistle
       </div>
     </div>
   );
@@ -667,28 +755,27 @@ function TabClassement() {
 // ── App Container ──────────────────────────────────────────────────────────────
 
 function AppDemo() {
-  const [tab, setTab] = useState<Tab>("ligue");
+  const [tab, setTab] = useState<Tab>("league");
 
   const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
-    { id: "ligue",      label: "Ma ligue",   Icon: HomeIcon },
-    { id: "pronostics", label: "Pronostics", Icon: Target  },
-    { id: "classement", label: "Classement", Icon: List    },
+    { id: "league",      label: "My League",   Icon: HomeIcon },
+    { id: "predictions", label: "Predictions", Icon: Target   },
+    { id: "leaderboard", label: "Leaderboard", Icon: List     },
   ];
 
   return (
     <section id="app" className="py-24 px-6">
       <div className="max-w-2xl mx-auto">
         <Reveal className="text-center mb-10">
-          <Tag>L'app</Tag>
-          <h2 className="mt-5 text-4xl font-bold">Interagis avec le démo.</h2>
+          <Tag>Live demo</Tag>
+          <h2 className="mt-5 text-4xl font-bold">See how it plays.</h2>
           <p className="mt-3 text-base" style={{ color: "#64748b" }}>
-            Ligue fictive · 10 joueurs · 200€ de cagnotte · World Cup 2026
+            Mock league · 10 players · $200 prize pool · World Cup 2026
           </p>
         </Reveal>
 
         <div className="rounded-3xl overflow-hidden"
           style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,12,22,0.8)" }}>
-          {/* App top bar */}
           <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -703,7 +790,6 @@ function AppDemo() {
 
             <LeagueHeader />
 
-            {/* Tabs */}
             <div className="flex gap-1 p-1 rounded-xl"
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
               {TABS.map(({ id, label, Icon }) => (
@@ -720,7 +806,6 @@ function AppDemo() {
             </div>
           </div>
 
-          {/* Tab content */}
           <div className="p-4">
             <AnimatePresence mode="wait">
               <motion.div key={tab}
@@ -728,9 +813,9 @@ function AppDemo() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.22 }}>
-                {tab === "ligue"      && <TabLigue onGoProno={() => setTab("pronostics")} />}
-                {tab === "pronostics" && <TabPronostics />}
-                {tab === "classement" && <TabClassement />}
+                {tab === "league"      && <TabLeague onGoPredict={() => setTab("predictions")} />}
+                {tab === "predictions" && <TabPredictions />}
+                {tab === "leaderboard" && <TabLeaderboard />}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -746,32 +831,32 @@ function HowItWorks() {
   const steps = [
     {
       emoji: "👥",
-      title: "1. Crée ta ligue",
-      desc: "Donne un nom, fixe la mise (ex: 20€/pote) et partage le code d'invitation. La cagnotte se constitue automatiquement.",
+      title: "1. Create your league",
+      desc: "Name your league, set the entry fee, invite friends with a code. Funds are locked in a smart contract the moment everyone's in.",
       color: "#3b82f6",
     },
     {
       emoji: "⚽",
-      title: "2. Pronostique les scores",
-      desc: "Avant chaque match, tu soumets ton score prédit. Deadline 15 min avant le coup d'envoi. Impossible de tricher.",
+      title: "2. Pick the scores",
+      desc: "Before every match, submit your predicted scoreline. Picks lock automatically 15 minutes before kickoff. No late changes.",
       color: "#8b5cf6",
     },
     {
       emoji: "🏆",
-      title: "3. Suis le classement live",
-      desc: "Les points se calculent après chaque match. À la fin du tournoi, la cagnotte se redistribue selon la précision de chacun.",
+      title: "3. Contract pays out",
+      desc: "When the tournament ends, the smart contract distributes the prize pool proportionally to accuracy — with no one in the middle.",
       color: "#10b981",
     },
   ];
 
   return (
-    <section id="comment" className="py-24 px-6" style={{ background: "rgba(13,17,23,0.5)" }}>
+    <section id="how" className="py-24 px-6">
       <div className="max-w-3xl mx-auto">
         <Reveal className="text-center mb-12">
-          <Tag>Comment ça marche</Tag>
+          <Tag>How it works</Tag>
           <h2 className="mt-5 text-4xl font-bold">
-            Simple comme MPG.<br />
-            <span className="gradient-text">Avec de l'enjeu en plus.</span>
+            Three steps.<br />
+            <span className="gradient-text">Then it runs itself.</span>
           </h2>
         </Reveal>
 
@@ -793,11 +878,11 @@ function HowItWorks() {
             <div className="flex items-start gap-3">
               <Shield size={15} style={{ color: "#60a5fa", flexShrink: 0, marginTop: 1 }} />
               <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
-                <span style={{ color: "#60a5fa", fontWeight: 600 }}>Barème :</span>{" "}
-                Score exact → <strong style={{ color: "#f1f5f9" }}>200 pts</strong> ·
-                Bonne issue + bon écart → <strong style={{ color: "#f1f5f9" }}>150 pts</strong> ·
-                Bonne issue → <strong style={{ color: "#f1f5f9" }}>130 pts</strong>.
-                {" "}La cagnotte se distribue au prorata des points au carré — tu restes dans la course jusqu'au dernier sifflet.
+                <span style={{ color: "#60a5fa", fontWeight: 600 }}>Scoring:</span>{" "}
+                Exact score → <strong style={{ color: "#f1f5f9" }}>200 pts</strong> ·
+                Right outcome + correct margin → <strong style={{ color: "#f1f5f9" }}>150 pts</strong> ·
+                Right outcome → <strong style={{ color: "#f1f5f9" }}>130 pts</strong>.
+                {" "}Prize pool distributes proportionally to score² — you're in the race until the final whistle.
               </p>
             </div>
           </div>
@@ -821,11 +906,11 @@ function Footer() {
           <span className="font-bold text-sm">ScoreVault</span>
           <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
             style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
-            BETA
+            TESTNET
           </span>
         </div>
         <p className="text-xs" style={{ color: "#334155" }}>
-          Beta fermée · FIFA World Cup 2026 · Données fictives — démo uniquement
+          Open beta · Ethereum testnet · No real funds · FIFA World Cup 2026
         </p>
       </div>
     </footer>
@@ -839,6 +924,7 @@ export default function Home() {
     <main>
       <Nav />
       <Hero />
+      <OnChain />
       <AppDemo />
       <HowItWorks />
       <Footer />
