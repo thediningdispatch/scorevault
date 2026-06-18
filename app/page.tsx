@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import {
-  Check,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { Check } from "lucide-react";
+import { AppShell, type AppTab } from "@/components/app-shell";
+import { PredictionMatchCard } from "@/components/predictions/match-card";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ensureSession, upsertProfile, savePicks, getUserPicks, getLeaderboard } from "./lib/supabase";
 import type { LeaderboardEntry, Pick as DBPick } from "./lib/supabase";
+import type { Match, ScoreVal } from "./lib/match-types";
 
 // ─── MPP exact palette ────────────────────────────────────────────────────────
 const M = {
@@ -30,44 +30,14 @@ const M = {
 function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pct), 1.23)); }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ScoreVal = number | "";
-type Tab = "picks" | "results" | "leaderboard" | "league";
+type Tab = AppTab;
 
-interface OddsResponse {
-  live: boolean;
-  home?: number | null;
-  draw?: number | null;
-  away?: number | null;
-  source?: "polymarket";
-}
-
-interface Match {
-  id: string; day: number; time: string; gw: string;
-  home: { name: string; flag: string; pct: number };
-  draw: { pct: number };
-  away: { name: string; flag: string; pct: number };
-}
 interface PastMatch {
   id: string; day: number; date: string; gw: string;
   home: { name: string; flag: string; score: number; pct: number };
   draw: { pct: number };
   away: { name: string; flag: string; score: number; pct: number };
   myPick: { home: number; away: number } | null;
-}
-
-function useMatchOdds(matchId: string) {
-  return useQuery({
-    queryKey: ["match-odds", matchId],
-    queryFn: async () => {
-      const response = await fetch(`/api/odds?match=${encodeURIComponent(matchId)}`);
-      if (!response.ok) return { live: false } satisfies OddsResponse;
-      return response.json() as Promise<OddsResponse>;
-    },
-    staleTime: 20_000,
-    refetchInterval: 30_000,
-    refetchIntervalInBackground: false,
-    retry: 1,
-  });
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -152,103 +122,27 @@ function CircleFlag({ flag, size = 76 }: { flag: string; size?: number }) {
   );
 }
 
-// ─── Score input ──────────────────────────────────────────────────────────────
-function ScoreInput({ value, onChange }: { value: ScoreVal; onChange: (v: ScoreVal) => void }) {
-  const filled = value !== "";
-  return (
-    <input
-      aria-label="Predicted score"
-      className={`sv-score-input${filled ? " is-filled" : ""}`}
-      type="text" inputMode="numeric" pattern="[0-9]*"
-      value={value === "" ? "" : String(value)}
-      onChange={e => {
-        const v = e.target.value.replace(/\D/g, "");
-        onChange(v === "" ? "" : Math.min(20, parseInt(v) || 0));
-      }}
-      placeholder="–"
-    />
-  );
-}
-
-// ─── Match pick card ──────────────────────────────────────────────────────────
-function MatchCard({ match, picks, onPick }: {
-  match: Match;
-  picks: { home: ScoreVal; away: ScoreVal };
-  onPick: (h: ScoreVal, a: ScoreVal) => void;
-}) {
-  const h = picks.home; const a = picks.away;
-  const oddsQuery = useMatchOdds(match.id);
-  const liveOdds = oddsQuery.data?.live ? oddsQuery.data : null;
-  const homePct = liveOdds?.home ?? match.home.pct;
-  const drawPct = liveOdds?.draw ?? match.draw.pct;
-  const awayPct = liveOdds?.away ?? match.away.pct;
-  const favoritePct = Math.max(homePct, drawPct, awayPct);
-
-  return (
-    <article className="sv-match-card">
-      <div className="sv-match-meta">
-        <span className="sv-competition-dot">🏆</span>
-        <span>{match.gw}</span>
-        <span className="sv-meta-separator">·</span>
-        <span>{match.time}</span>
-        <span className={`sv-market-status${liveOdds ? " is-live" : ""}`}>
-          <i />
-          {liveOdds ? "Polymarket live" : oddsQuery.isFetching ? "Updating odds" : "Market estimate"}
-        </span>
-      </div>
-
-      <div className="sv-match-main">
-        <div className="sv-team">
-          <CircleFlag flag={match.home.flag} size={76} />
-          <span className="sv-team-name">{match.home.name}</span>
-        </div>
-
-        <div className="sv-pick-center">
-          <div className="sv-score-fields">
-            <ScoreInput value={h} onChange={v => onPick(v, a)} />
-            <ScoreInput value={a} onChange={v => onPick(h, v)} />
-          </div>
-
-          <div className="sv-odds-grid">
-            {[
-              { label: "1", pct: homePct, active: h !== "" && a !== "" && Number(h) > Number(a) },
-              { label: "X", pct: drawPct, active: h !== "" && a !== "" && Number(h) === Number(a) },
-              { label: "2", pct: awayPct, active: h !== "" && a !== "" && Number(h) < Number(a) },
-            ].map(({ label, pct, active }) => (
-              <div
-                key={label}
-                className={`sv-odd ${pct === favoritePct ? "is-favorite" : "is-underdog"}${active ? " is-active" : ""}`}
-              >
-                <span className="sv-odd-label">{label}</span>
-                <span className="sv-odd-value">{pct}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="sv-team">
-          <CircleFlag flag={match.away.flag} size={76} />
-          <span className="sv-team-name">{match.away.name}</span>
-        </div>
-      </div>
-    </article>
-  );
-}
-
 // ─── Day strip ────────────────────────────────────────────────────────────────
 function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: number) => void }) {
   return (
-    <div className="sv-day-strip no-scrollbar">
+    <div className="no-scrollbar flex shrink-0 gap-1 overflow-x-auto border-b border-white/[0.07] bg-[#11141b] px-2.5 py-2">
       {DAYS.map(({ short, num, day, today }) => {
         const active = day === selected;
         return (
           <button
-            className={`sv-day${active ? " is-active" : ""}`}
+            className={`flex min-w-12 shrink-0 flex-col items-center rounded-xl px-2 py-2 transition-colors ${
+              active
+                ? "bg-[#2f6bff] text-white shadow-[0_8px_18px_rgba(47,107,255,0.22)]"
+                : "text-[#717a8e] hover:bg-white/[0.05] hover:text-white"
+            }`}
             key={day}
             onClick={() => onSelect(day)}
+            type="button"
           >
-            <span>{today ? "Tod." : short}</span>
-            <strong>{num}</strong>
+            <span className="text-[9px] font-semibold uppercase tracking-wide">
+              {today ? "Today" : short}
+            </span>
+            <strong className="text-sm">{num}</strong>
           </button>
         );
       })}
@@ -267,21 +161,34 @@ function Countdown({ day }: { day: number }) {
       .filter((t): t is number => t !== null && t > Date.now())
       .sort((a, b) => a - b);
     const target = targets[0];
-    if (!target) { setS(0); return; }
+    if (!target) {
+      const timeout = setTimeout(() => setS(0), 0);
+      return () => clearTimeout(timeout);
+    }
     const tick = () => setS(Math.max(0, Math.floor((target - Date.now()) / 1000)));
-    tick();
+    const timeout = setTimeout(tick, 0);
     const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(id);
+    };
   }, [day]);
 
   const pad = (n: number) => String(n).padStart(2, "0");
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sc = s % 60;
-  if (s === 0) return <div className="sv-countdown"><span className="sv-clock">◷</span><span>— : — : —</span></div>;
+  if (s === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.05] px-3 py-2 text-xs font-semibold text-[#7f889c]">
+        <span className="text-lg leading-none text-[#2f6bff]">◷</span>
+        <span>Predictions closed</span>
+      </div>
+    );
+  }
   return (
-    <div className="sv-countdown">
-      <span className="sv-clock">◷</span>
+    <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.05] px-3 py-2 text-xs font-semibold tabular-nums text-[#a4adbf]">
+      <span className="text-lg leading-none text-[#2f6bff]">◷</span>
       <span>{pad(h)} : {pad(m)} : {pad(sc)}</span>
     </div>
   );
@@ -325,52 +232,65 @@ function PicksTab({ userId }: { userId: string | null }) {
   }
 
   return (
-    <div className="sv-picks-screen">
+    <div className="relative flex h-full flex-col overflow-hidden bg-[#0d0f15]">
       <DayStrip selected={day} onSelect={setDay} />
 
-      <div className="sv-picks-tools">
+      <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-3">
         <Countdown day={day} />
-        <label className="sv-toggle-label">
-          Show stats
-          <button
-            aria-label="Toggle prediction statistics"
-            aria-pressed={showStats}
-            className={`sv-toggle${showStats ? " is-on" : ""}`}
-            onClick={() => setShowStats(value => !value)}
-          >
-            <span><Check size={14} /></span>
-          </button>
+        <label className="flex items-center gap-2 text-xs font-semibold text-[#8992a5]">
+          Market odds
+          <Switch
+            aria-label="Toggle market odds"
+            checked={showStats}
+            onCheckedChange={setShowStats}
+          />
         </label>
       </div>
 
       {dayMatches.length > 0 && (
-        <div className="sv-date-heading">
-          <span>Thursday {day} June</span>
-          <strong>{filled} / {dayMatches.length}</strong>
+        <div className="flex shrink-0 items-center justify-between px-4 pb-3 pt-1">
+          <span className="text-sm font-semibold text-white">
+            {new Date(2026, 5, day).toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+          <strong className="text-[11px] font-semibold text-[#737c8f]">
+            {filled} / {dayMatches.length}
+          </strong>
         </div>
       )}
 
-      <div className={`sv-match-list no-scrollbar${showStats ? "" : " hide-stats"}`}>
+      <div className="no-scrollbar min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3">
         {dayMatches.length === 0 ? (
-          <div className="sv-empty-state">
-            <span style={{ fontSize: 48 }}>⚽</span>
-            <strong>No games today</strong>
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-[#737c8f]">
+            <span className="text-4xl">⚽</span>
+            <strong className="text-sm">No games today</strong>
           </div>
         ) : (
-          dayMatches.map(m => (
-            <MatchCard key={m.id} match={m}
+          dayMatches.map((m, index) => (
+            <PredictionMatchCard
+              index={index}
+              key={m.id}
+              match={m}
               picks={picks[m.id] ?? { home: "", away: "" }}
-              onPick={(h, a) => setPick(m.id, h, a)} />
+              onPick={(h, a) => setPick(m.id, h, a)}
+            />
           ))
         )}
-        <div className="sv-list-spacer" />
+        <div className="h-24" />
       </div>
 
-      <div className="sv-lock-dock">
-        <button
-          className={`sv-lock-button${saved ? " is-saved" : ""}`}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0d0f15] via-[#0d0f15]/95 to-transparent px-4 pb-3 pt-8">
+        <Button
+          className={`pointer-events-auto w-full ${
+            saved ? "bg-[#25a95d] hover:bg-[#25a95d]" : ""
+          }`}
+          size="lg"
           onClick={save}
           disabled={filled === 0}
+          type="button"
         >
           {saved
             ? <><Check size={16} /> Predictions locked!</>
@@ -379,7 +299,7 @@ function PicksTab({ userId }: { userId: string | null }) {
               : filled > 0
                 ? `Lock ${filled} of ${dayMatches.length} predictions`
                 : "Enter your predictions above"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -813,21 +733,6 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
   );
 }
 
-// ─── Bottom nav ───────────────────────────────────────────────────────────────
-const NAV: { id: Tab; label: string }[] = [
-  { id: "picks",       label: "Predictions" },
-  { id: "results",     label: "Results" },
-  { id: "leaderboard", label: "Ranking" },
-  { id: "league",      label: "My leagues" },
-];
-
-function NavIcon({ tab }: { tab: Tab }) {
-  if (tab === "picks") return <span className="sv-score-icon">1:1</span>;
-  if (tab === "results") return <span className="sv-ball-icon">⚽</span>;
-  if (tab === "leaderboard") return <Trophy size={23} />;
-  return <Users size={24} />;
-}
-
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
@@ -836,15 +741,19 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    (async () => {
+    const hydrationTimeout = setTimeout(() => {
       try {
         const savedUser = localStorage.getItem("sv_user");
         if (savedUser) setUser(JSON.parse(savedUser));
       } catch {}
-      const uid = await ensureSession();
-      setUserId(uid);
       setReady(true);
-    })();
+    }, 0);
+
+    ensureSession()
+      .then(setUserId)
+      .catch(() => setUserId(null));
+
+    return () => clearTimeout(hydrationTimeout);
   }, []);
 
   async function onboard(name: string, avatar: string) {
@@ -865,44 +774,23 @@ export default function App() {
   };
 
   return (
-    <div className="sv-viewport">
-      <div className="sv-app-shell">
-        {!user ? <Onboarding onDone={onboard} /> : (
-          <>
-            <header className="sv-topbar">
-              <div className="sv-brand-switcher">
-                <div className="sv-brand-coin">SV</div>
-                <span>BASE</span>
-              </div>
-              <h1>{TAB_TITLES[tab]}</h1>
-              <div aria-hidden="true" />
-            </header>
-
-            <main className="sv-content">
-              {tab === "picks"       && <PicksTab userId={userId} />}
-              {tab === "results"     && <ResultsTab />}
-              {tab === "leaderboard" && <RankingTab user={user} />}
-              {tab === "league"      && <LeagueTab user={user} />}
-            </main>
-
-            <nav className="sv-bottom-nav">
-              {NAV.map(item => {
-                const active = item.id === tab;
-                return (
-                  <button
-                    className={active ? "is-active" : ""}
-                    key={item.id}
-                    onClick={() => setTab(item.id)}
-                  >
-                    <NavIcon tab={item.id} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </>
-        )}
+    !user ? (
+      <div className="fixed inset-0 grid place-items-center bg-[#080a0f]">
+        <div className="h-[min(100dvh,932px)] w-[min(100vw,430px)] overflow-hidden bg-[#0d0f15]">
+          <Onboarding onDone={onboard} />
+        </div>
       </div>
-    </div>
+    ) : (
+      <AppShell
+        activeTab={tab}
+        onTabChange={setTab}
+        title={TAB_TITLES[tab]}
+      >
+        {tab === "picks"       && <PicksTab userId={userId} />}
+        {tab === "results"     && <ResultsTab />}
+        {tab === "leaderboard" && <RankingTab user={user} />}
+        {tab === "league"      && <LeagueTab user={user} />}
+      </AppShell>
+    )
   );
 }
