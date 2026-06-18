@@ -656,8 +656,117 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   );
 }
 
+// ── InstallBanner ─────────────────────────────────────────────────────────────
+function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
+  const isIOS = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  // iOS share icon SVG (box + arrow up)
+  const ShareIcon = (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={P.blue} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+      <polyline points="16 6 12 2 8 6"/>
+      <line x1="12" y1="2" x2="12" y2="15"/>
+    </svg>
+  );
+  // Android menu icon (⋮)
+  const MenuIcon = (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill={P.blue} stroke="none">
+      <circle cx="12" cy="5"  r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+    </svg>
+  );
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 0, left: "50%",
+      width: "min(100vw, 430px)", zIndex: 998,
+      animation: "sv-slide-up 0.5s cubic-bezier(0.34,1.46,0.64,1) forwards",
+      paddingBottom: "env(safe-area-inset-bottom, 0)",
+    }}>
+      {/* main card */}
+      <div style={{
+        margin: "0 10px 10px",
+        borderRadius: 20,
+        background: P.white,
+        boxShadow: "0 -2px 40px rgba(31,39,84,0.16), 0 0 0 1px rgba(30,37,72,0.06)",
+        padding: "18px 18px 16px",
+        position: "relative",
+      }}>
+        {/* × */}
+        <button onClick={onDismiss} style={{
+          position: "absolute", top: 12, right: 12,
+          width: 28, height: 28, borderRadius: "50%",
+          border: "none", background: P.gray,
+          color: P.muted, fontSize: 18, lineHeight: 1,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>×</button>
+
+        {/* header row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <div style={{
+            width: 46, height: 46, borderRadius: 13, flexShrink: 0,
+            background: P.blue, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 22, boxShadow: "0 4px 14px rgba(49,87,246,0.35)",
+          }}>⚽</div>
+          <div>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: P.ink }}>Add to Home Screen</p>
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: P.muted }}>Keep ScoreVault one tap away</p>
+          </div>
+        </div>
+
+        {/* step */}
+        <div style={{
+          padding: "12px 14px", borderRadius: 12,
+          background: P.blueBg, border: `1px solid #d9ddff`,
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 14,
+        }}>
+          <span style={{ animation: "sv-tap-pulse 1.4s ease-in-out infinite", display: "flex" }}>
+            {isIOS ? ShareIcon : MenuIcon}
+          </span>
+          <span style={{ fontSize: 13, color: P.ink, lineHeight: 1.45 }}>
+            {isIOS
+              ? <><strong>Tap Share</strong> at the bottom, then <strong>"Add to Home Screen"</strong></>
+              : <><strong>Tap ⋮ Menu</strong> in your browser, then <strong>"Add to Home Screen"</strong></>
+            }
+          </span>
+        </div>
+
+        {/* actions */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onDismiss} style={{
+            flex: 1, padding: "11px 0", borderRadius: 10,
+            border: `1px solid ${P.border}`, background: "none",
+            color: P.muted, fontSize: 13, cursor: "pointer",
+          }}>Maybe later</button>
+          <button onClick={onDismiss} style={{
+            flex: 2, padding: "11px 0", borderRadius: 10,
+            border: "none", background: P.blue,
+            color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer",
+          }}>Got it ✓</button>
+        </div>
+      </div>
+
+      {/* bouncing arrow pointing at browser chrome below */}
+      <div style={{
+        textAlign: "center", fontSize: 20, color: P.blue,
+        marginBottom: 6, lineHeight: 1,
+        animation: "sv-bounce-down 1.1s ease-in-out infinite",
+      }}>↓</div>
+    </div>
+  );
+}
+
 // ── PromoPopup ────────────────────────────────────────────────────────────────
 function PromoPopup({ onDismiss }: { onDismiss: () => void }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
+
+  async function submit() {
+    if (!email.includes("@") || status !== "idle") return;
+    setStatus("loading");
+    await new Promise(r => setTimeout(r, 900));
+    setStatus("done");
+  }
+
   return (
     <div
       onClick={onDismiss}
@@ -667,43 +776,70 @@ function PromoPopup({ onDismiss }: { onDismiss: () => void }) {
         onClick={e => e.stopPropagation()}
         style={{ position: "relative", width: "100%", maxWidth: 340, borderRadius: 22, background: P.white, boxShadow: "0 32px 80px rgba(31,39,84,0.28), 0 0 0 1px rgba(30,37,72,0.06)", overflow: "hidden" }}
       >
-        {/* gradient top strip */}
-        <div style={{ background: "linear-gradient(135deg, #253ccf 0%, #3157f6 55%, #172784 100%)", padding: "28px 24px 22px" }}>
-          <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.08em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "5px 9px", borderRadius: 5, marginBottom: 14 }}>
-            LIMITED DROP · WORLD CUP 2026
+        {/* gradient header */}
+        <div style={{ background: "linear-gradient(135deg, #253ccf 0%, #3157f6 55%, #172784 100%)", padding: "26px 24px 20px" }}>
+          <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "5px 9px", borderRadius: 5, marginBottom: 14 }}>
+            COMING SOON · WC2026
           </div>
-          <div style={{ fontSize: 38, marginBottom: 8 }}>🏟️</div>
-          <h2 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 28, color: "#fff", letterSpacing: "0.02em", lineHeight: 1.1 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>🏟️</div>
+          <h2 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 26, color: "#fff", letterSpacing: "0.02em", lineHeight: 1.1 }}>
             Win 2 seats<br />in NYC
           </h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#c8d0ff", lineHeight: 1.55 }}>
-            Top scorer in your league wins two tickets to the World Cup 2026 Final at MetLife Stadium.
+          <p style={{ margin: 0, fontSize: 13, color: "#c8d0ff", lineHeight: 1.5 }}>
+            Right now ScoreVault is free — predict scores &amp; climb the board with your crew. <strong style={{ color: "#fff" }}>Soon you&apos;ll stake real money</strong> and play for keeps.
           </p>
         </div>
 
-        {/* bottom section */}
-        <div style={{ padding: "20px 24px 24px" }}>
-          <ul style={{ margin: "0 0 20px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* body */}
+        <div style={{ padding: "18px 20px 20px" }}>
+          {/* two pillars */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
             {[
-              ["⚽", "Lock your score predictions daily"],
-              ["📊", "Earn points for exact & partial hits"],
-              ["🥇", "Most points at the end takes the prize"],
-            ].map(([icon, text]) => (
-              <li key={text} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: P.ink }}>
-                <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{icon}</span>
-                {text}
-              </li>
+              { icon: "👥", label: "Today", desc: "Track scores with friends, free" },
+              { icon: "💰", label: "Soon", desc: "Stake USDC, win real prizes" },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{ padding: "12px 10px", borderRadius: 12, background: P.blueBg, border: `1px solid #d9ddff`, textAlign: "center" }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: P.blue, marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 11, color: P.muted, lineHeight: 1.4 }}>{desc}</div>
+              </div>
             ))}
-          </ul>
-          <button
-            onClick={onDismiss}
-            style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", background: P.blue, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", letterSpacing: "-0.01em" }}
-          >
-            Let&apos;s play →
+          </div>
+
+          <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: P.ink }}>
+            Drop your email → enter the WC ticket draw &amp; be first to know when v2 drops
+          </p>
+
+          {status === "done" ? (
+            <div style={{ padding: "14px 12px", borderRadius: 12, background: P.greenBg, border: "1px solid rgba(21,169,87,0.25)", textAlign: "center", fontSize: 13, fontWeight: 800, color: P.green }}>
+              ✓ You&apos;re in — we&apos;ll be in touch!
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && submit()}
+                style={{ padding: "13px 14px", borderRadius: 10, border: `1px solid ${P.border}`, background: P.white, color: P.ink, fontSize: 14, outline: "none" }}
+              />
+              <button
+                onClick={submit}
+                disabled={!email.includes("@") || status === "loading"}
+                style={{ padding: "13px 0", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: email.includes("@") ? "pointer" : "default", opacity: email.includes("@") ? 1 : 0.55 }}
+              >
+                {status === "loading" ? "Joining…" : "I'm in →"}
+              </button>
+            </div>
+          )}
+
+          <button onClick={onDismiss} style={{ display: "block", width: "100%", marginTop: 10, padding: "8px 0", background: "none", border: "none", fontSize: 12, color: P.muted, cursor: "pointer" }}>
+            Not now
           </button>
         </div>
 
-        {/* X close button */}
+        {/* X */}
         <button
           onClick={onDismiss}
           style={{ position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, lineHeight: 1 }}
@@ -722,10 +858,16 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("picks");
   const [ready, setReady] = useState(false);
   const [showPromo, setShowPromo] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
 
   function dismissPromo() {
     try { localStorage.setItem("sv_promo_seen", "1"); } catch {}
     setShowPromo(false);
+  }
+
+  function dismissInstall() {
+    try { localStorage.setItem("sv_install_seen", "1"); } catch {}
+    setShowInstall(false);
   }
 
   useEffect(() => {
@@ -737,6 +879,17 @@ export default function App() {
     ensureSession().then(setUserId).catch(() => setUserId(null));
     return () => clearTimeout(t);
   }, []);
+
+  // Show install banner 5 s after user is logged in (not standalone, not already seen)
+  useEffect(() => {
+    if (!user) return;
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (isStandalone) return;
+    try { if (localStorage.getItem("sv_install_seen")) return; } catch {}
+    const t = setTimeout(() => setShowInstall(true), 5000);
+    return () => clearTimeout(t);
+  }, [user]);
 
   async function onboard(name: string, avatar: string) {
     const u = { name, avatar };
@@ -780,6 +933,7 @@ export default function App() {
         <BottomNav tab={tab} setTab={setTab} />
       </div>
       {showPromo && <PromoPopup onDismiss={dismissPromo} />}
+      {showInstall && !showPromo && <InstallBanner onDismiss={dismissInstall} />}
     </div>
   );
 }
