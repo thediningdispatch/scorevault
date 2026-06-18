@@ -46,3 +46,9 @@ next-env.d.ts
 # foundry build artifacts
 contracts/cache/
 contracts/out/
+
+# Solidity / Foundry (pas pour Vercel)
+contracts/lib/
+contracts/out/
+contracts/cache/
+scorervault_dossier_codex.md
