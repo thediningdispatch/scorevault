@@ -278,8 +278,7 @@ function PicksTab({ userId }: { userId: string | null }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas, position: "relative" }}>
       <DayStrip selected={day} onSelect={setDay} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px 9px" }}>
-        <Countdown day={day} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "13px 16px 9px" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, fontWeight: 650, color: P.muted, cursor: "pointer" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
             Odds powered by
@@ -919,10 +918,7 @@ export default function App() {
     <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
       <div style={{ position: "relative", display: "flex", flexDirection: "column", width: "min(100vw, 430px)", height: "min(100dvh, 932px)", overflow: "hidden", background: P.canvas, boxShadow: "0 28px 90px rgba(31,39,84,0.18), 0 0 0 1px rgba(30,37,72,0.05)" }}>
         <header style={{ display: "grid", gridTemplateColumns: "92px 1fr 92px", alignItems: "center", minHeight: 64, padding: "max(0px,env(safe-area-inset-top)) 14px 0", background: P.white, borderBottom: `1px solid ${P.border}`, boxShadow: "0 4px 18px rgba(32,39,78,0.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px 3px 3px", borderRadius: 999, background: P.blueBg, border: "1px solid #d9ddff", width: "fit-content" }}>
-            <div style={{ width: 30, height: 30, borderRadius: "50%", background: P.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900, color: "#fff" }}>SV</div>
-            <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: P.blue }}>BASE</span>
-          </div>
+          <div />
           <h1 style={{ margin: 0, textAlign: "center", fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: "-0.02em" }}>{TAB_TITLES[tab]}</h1>
           <div />
         </header>
