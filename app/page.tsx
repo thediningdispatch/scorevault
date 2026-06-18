@@ -1,37 +1,37 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Check } from "lucide-react";
-import { AppShell, type AppTab } from "@/components/app-shell";
-import { PredictionMatchCard } from "@/components/predictions/match-card";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { ensureSession, upsertProfile, savePicks, getUserPicks, getLeaderboard } from "./lib/supabase";
 import type { LeaderboardEntry, Pick as DBPick } from "./lib/supabase";
-import type { Match, ScoreVal } from "./lib/match-types";
 
-// ─── Polymarket light palette ─────────────────────────────────────────────────
-const M = {
-  bg:     "#f5f6fb",
-  card:   "#ffffff",
-  border: "#e4e6ef",
-  gold:   "#3157f6",
-  goldBg: "#eef0ff",
-  nav:    "#1637d5",
-  text:   "#171927",
-  sub:    "#777b8e",
-  mute:   "#f4f5f9",
-  pill:   "#eef0ff",
-  green:  "#15a957",
-  red:    "#df5353",
-  pink:   "#df5353",
+// ── Palette ───────────────────────────────────────────────────────────────────
+const P = {
+  bg:      "#e9ecf8",
+  canvas:  "#f5f6fb",
+  white:   "#ffffff",
+  border:  "#e4e6ef",
+  blue:    "#3157f6",
+  blueBg:  "#eef0ff",
+  ink:     "#171927",
+  muted:   "#777b8e",
+  gray:    "#f4f5f9",
+  green:   "#15a957",
+  greenBg: "rgba(21,169,87,0.10)",
+  red:     "#df5353",
 };
 
-// ─── Points formula (same as before, hidden from user) ────────────────────────
+// ── Points formula ────────────────────────────────────────────────────────────
 function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pct), 1.23)); }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type Tab = AppTab;
+// ── Types ─────────────────────────────────────────────────────────────────────
+type Tab = "picks" | "results" | "ranking" | "league";
+type ScoreVal = number | "";
 
+interface Match {
+  id: string; day: number; time: string; gw: string;
+  home: { name: string; flag: string; pct: number };
+  draw: { pct: number };
+  away: { name: string; flag: string; pct: number };
+}
 interface PastMatch {
   id: string; day: number; date: string; gw: string;
   home: { name: string; flag: string; score: number; pct: number };
@@ -40,50 +40,24 @@ interface PastMatch {
   myPick: { home: number; away: number } | null;
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+// ── Data ──────────────────────────────────────────────────────────────────────
 const MATCHES: Match[] = [
-  { id: "gha-pan", day: 18, time: "3:00 PM ET",  gw: "GW.1",
-    home: { name: "Ghana",       flag: "🇬🇭", pct: 56 }, draw: { pct: 26 },
-    away: { name: "Panama",      flag: "🇵🇦", pct: 18 } },
-  { id: "uzb-col", day: 18, time: "6:00 PM ET",  gw: "GW.1",
-    home: { name: "Uzbekistan",  flag: "🇺🇿", pct: 8  }, draw: { pct: 22 },
-    away: { name: "Colombia",    flag: "🇨🇴", pct: 70 } },
-  { id: "cze-rsa", day: 18, time: "9:00 PM ET",  gw: "GW.1",
-    home: { name: "Czechia",     flag: "🇨🇿", pct: 52 }, draw: { pct: 28 },
-    away: { name: "South Africa",flag: "🇿🇦", pct: 20 } },
-  { id: "usa-bol", day: 19, time: "12:00 PM ET", gw: "GW.1",
-    home: { name: "USA",         flag: "🇺🇸", pct: 72 }, draw: { pct: 18 },
-    away: { name: "Bolivia",     flag: "🇧🇴", pct: 10 } },
-  { id: "ecu-ven", day: 19, time: "3:00 PM ET",  gw: "GW.1",
-    home: { name: "Ecuador",     flag: "🇪🇨", pct: 48 }, draw: { pct: 28 },
-    away: { name: "Venezuela",   flag: "🇻🇪", pct: 24 } },
-  { id: "mex-cam", day: 19, time: "6:00 PM ET",  gw: "GW.1",
-    home: { name: "Mexico",      flag: "🇲🇽", pct: 65 }, draw: { pct: 22 },
-    away: { name: "Cameroon",    flag: "🇨🇲", pct: 13 } },
-  { id: "fra-aut", day: 20, time: "3:00 PM ET",  gw: "GW.2",
-    home: { name: "France",      flag: "🇫🇷", pct: 68 }, draw: { pct: 20 },
-    away: { name: "Austria",     flag: "🇦🇹", pct: 12 } },
-  { id: "bra-arg", day: 20, time: "9:00 PM ET",  gw: "GW.2",
-    home: { name: "Brazil",      flag: "🇧🇷", pct: 38 }, draw: { pct: 26 },
-    away: { name: "Argentina",   flag: "🇦🇷", pct: 36 } },
-  { id: "eng-irl", day: 21, time: "3:00 PM ET",  gw: "GW.2",
-    home: { name: "England",     flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pct: 62 }, draw: { pct: 22 },
-    away: { name: "Ireland",     flag: "🇮🇪", pct: 16 } },
-  { id: "esp-mar", day: 21, time: "6:00 PM ET",  gw: "GW.2",
-    home: { name: "Spain",       flag: "🇪🇸", pct: 58 }, draw: { pct: 24 },
-    away: { name: "Morocco",     flag: "🇲🇦", pct: 18 } },
+  { id: "gha-pan", day: 18, time: "3:00 PM ET",  gw: "GW.1", home: { name: "Ghana",        flag: "🇬🇭", pct: 56 }, draw: { pct: 26 }, away: { name: "Panama",       flag: "🇵🇦", pct: 18 } },
+  { id: "uzb-col", day: 18, time: "6:00 PM ET",  gw: "GW.1", home: { name: "Uzbekistan",   flag: "🇺🇿", pct: 8  }, draw: { pct: 22 }, away: { name: "Colombia",     flag: "🇨🇴", pct: 70 } },
+  { id: "cze-rsa", day: 18, time: "9:00 PM ET",  gw: "GW.1", home: { name: "Czechia",      flag: "🇨🇿", pct: 52 }, draw: { pct: 28 }, away: { name: "South Africa", flag: "🇿🇦", pct: 20 } },
+  { id: "usa-bol", day: 19, time: "12:00 PM ET", gw: "GW.1", home: { name: "USA",           flag: "🇺🇸", pct: 72 }, draw: { pct: 18 }, away: { name: "Bolivia",      flag: "🇧🇴", pct: 10 } },
+  { id: "ecu-ven", day: 19, time: "3:00 PM ET",  gw: "GW.1", home: { name: "Ecuador",      flag: "🇪🇨", pct: 48 }, draw: { pct: 28 }, away: { name: "Venezuela",    flag: "🇻🇪", pct: 24 } },
+  { id: "mex-cam", day: 19, time: "6:00 PM ET",  gw: "GW.1", home: { name: "Mexico",       flag: "🇲🇽", pct: 65 }, draw: { pct: 22 }, away: { name: "Cameroon",     flag: "🇨🇲", pct: 13 } },
+  { id: "fra-aut", day: 20, time: "3:00 PM ET",  gw: "GW.2", home: { name: "France",       flag: "🇫🇷", pct: 68 }, draw: { pct: 20 }, away: { name: "Austria",      flag: "🇦🇹", pct: 12 } },
+  { id: "bra-arg", day: 20, time: "9:00 PM ET",  gw: "GW.2", home: { name: "Brazil",       flag: "🇧🇷", pct: 38 }, draw: { pct: 26 }, away: { name: "Argentina",    flag: "🇦🇷", pct: 36 } },
+  { id: "eng-irl", day: 21, time: "3:00 PM ET",  gw: "GW.2", home: { name: "England",      flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pct: 62 }, draw: { pct: 22 }, away: { name: "Ireland",      flag: "🇮🇪", pct: 16 } },
+  { id: "esp-mar", day: 21, time: "6:00 PM ET",  gw: "GW.2", home: { name: "Spain",        flag: "🇪🇸", pct: 58 }, draw: { pct: 24 }, away: { name: "Morocco",      flag: "🇲🇦", pct: 18 } },
 ];
 
 const PAST: PastMatch[] = [
-  { id: "mex-rsa", day: 17, date: "Jun 17", gw: "GW.1",
-    home: { name: "Mexico",      flag: "🇲🇽", score: 2, pct: 58 }, draw: { pct: 24 },
-    away: { name: "South Africa",flag: "🇿🇦", score: 0, pct: 18 }, myPick: null },
-  { id: "kor-cze", day: 17, date: "Jun 17", gw: "GW.1",
-    home: { name: "South Korea", flag: "🇰🇷", score: 2, pct: 44 }, draw: { pct: 28 },
-    away: { name: "Czechia",     flag: "🇨🇿", score: 1, pct: 28 }, myPick: null },
-  { id: "can-bih", day: 17, date: "Jun 17", gw: "GW.1",
-    home: { name: "Canada",      flag: "🇨🇦", score: 1, pct: 52 }, draw: { pct: 26 },
-    away: { name: "Bosnia",      flag: "🇧🇦", score: 1, pct: 22 }, myPick: null },
+  { id: "mex-rsa", day: 17, date: "Jun 17", gw: "GW.1", home: { name: "Mexico",      flag: "🇲🇽", score: 2, pct: 58 }, draw: { pct: 24 }, away: { name: "South Africa", flag: "🇿🇦", score: 0, pct: 18 }, myPick: null },
+  { id: "kor-cze", day: 17, date: "Jun 17", gw: "GW.1", home: { name: "South Korea", flag: "🇰🇷", score: 2, pct: 44 }, draw: { pct: 28 }, away: { name: "Czechia",      flag: "🇨🇿", score: 1, pct: 28 }, myPick: null },
+  { id: "can-bih", day: 17, date: "Jun 17", gw: "GW.1", home: { name: "Canada",      flag: "🇨🇦", score: 1, pct: 52 }, draw: { pct: 26 }, away: { name: "Bosnia",       flag: "🇧🇦", score: 1, pct: 22 }, myPick: null },
 ];
 
 const DAYS = [
@@ -96,7 +70,6 @@ const DAYS = [
   { short: "Wed", num: "23", day: 23 },
 ];
 
-// ISO kickoff times per match (ET = UTC-4)
 const KICKOFF: Record<string, string> = {
   "gha-pan": "2026-06-18T15:00:00-04:00",
   "uzb-col": "2026-06-18T18:00:00-04:00",
@@ -113,36 +86,38 @@ const KICKOFF: Record<string, string> = {
 const AVATARS = ["⚽", "🦁", "🐯", "🦊", "🐺", "🦅", "🐉", "🦄"];
 const LEAGUE_CODE = "SV-2026";
 
-// ─── Circular flag ─────────────────────────────────────────────────────────────
-function CircleFlag({ flag, size = 76 }: { flag: string; size?: number }) {
+// ── Shared: flag circle ───────────────────────────────────────────────────────
+function Flag({ emoji, size = 72 }: { emoji: string; size?: number }) {
   return (
-    <div className="sv-flag" style={{ width: size, height: size }}>
-      <span style={{ fontSize: size * 0.72, lineHeight: 1, display: "block" }}>{flag}</span>
+    <div style={{
+      width: size, height: size, borderRadius: "50%", flexShrink: 0,
+      background: P.gray, display: "flex", alignItems: "center", justifyContent: "center",
+      boxShadow: "0 4px 12px rgba(31,39,84,0.08)",
+    }}>
+      <span style={{ fontSize: size * 0.68, lineHeight: 1 }}>{emoji}</span>
     </div>
   );
 }
 
-// ─── Day strip ────────────────────────────────────────────────────────────────
+// ── Shared: day strip ─────────────────────────────────────────────────────────
 function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: number) => void }) {
   return (
-    <div className="no-scrollbar flex shrink-0 gap-1 overflow-x-auto border-b border-white/[0.07] bg-[#11141b] px-2.5 py-2">
+    <div className="no-scrollbar" style={{
+      display: "flex", gap: 4, overflowX: "auto", flexShrink: 0,
+      padding: "8px 10px", background: P.white, borderBottom: `1px solid ${P.border}`,
+    }}>
       {DAYS.map(({ short, num, day, today }) => {
         const active = day === selected;
         return (
-          <button
-            className={`flex min-w-12 shrink-0 flex-col items-center rounded-xl px-2 py-2 transition-colors ${
-              active
-                ? "bg-[#2f6bff] text-white shadow-[0_8px_18px_rgba(47,107,255,0.22)]"
-                : "text-[#717a8e] hover:bg-white/[0.05] hover:text-white"
-            }`}
-            key={day}
-            onClick={() => onSelect(day)}
-            type="button"
-          >
-            <span className="text-[9px] font-semibold uppercase tracking-wide">
-              {today ? "Today" : short}
-            </span>
-            <strong className="text-sm">{num}</strong>
+          <button key={day} onClick={() => onSelect(day)} style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            minWidth: 48, padding: "8px 5px", border: "none", cursor: "pointer",
+            borderRadius: 11, background: active ? P.blueBg : "transparent",
+            color: active ? P.blue : P.muted,
+            boxShadow: active ? "inset 0 0 0 1px #dce0ff" : "none",
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 650 }}>{today ? "Today" : short}</span>
+            <strong style={{ fontSize: 15, fontWeight: 800, color: active ? P.blue : P.ink }}>{num}</strong>
           </button>
         );
       })}
@@ -150,51 +125,128 @@ function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: numb
   );
 }
 
-// ─── Countdown ───────────────────────────────────────────────────────────────
+// ── Shared: countdown pill ────────────────────────────────────────────────────
 function Countdown({ day }: { day: number }) {
   const [s, setS] = useState(0);
-
   useEffect(() => {
-    const dayMatches = MATCHES.filter(m => m.day === day);
-    const targets = dayMatches
-      .map(m => KICKOFF[m.id] ? new Date(KICKOFF[m.id]).getTime() : null)
-      .filter((t): t is number => t !== null && t > Date.now())
+    const targets = MATCHES
+      .filter(m => m.day === day && KICKOFF[m.id])
+      .map(m => new Date(KICKOFF[m.id]).getTime())
+      .filter(t => t > Date.now())
       .sort((a, b) => a - b);
     const target = targets[0];
-    if (!target) {
-      const timeout = setTimeout(() => setS(0), 0);
-      return () => clearTimeout(timeout);
-    }
+    if (!target) { setS(0); return; }
     const tick = () => setS(Math.max(0, Math.floor((target - Date.now()) / 1000)));
-    const timeout = setTimeout(tick, 0);
+    tick();
     const id = setInterval(tick, 1000);
-    return () => {
-      clearTimeout(timeout);
-      clearInterval(id);
-    };
+    return () => clearInterval(id);
   }, [day]);
 
   const pad = (n: number) => String(n).padStart(2, "0");
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sc = s % 60;
-  if (s === 0) {
-    return (
-      <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.05] px-3 py-2 text-xs font-semibold text-[#7f889c]">
-        <span className="text-lg leading-none text-[#2f6bff]">◷</span>
-        <span>Predictions closed</span>
-      </div>
-    );
-  }
   return (
-    <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.05] px-3 py-2 text-xs font-semibold tabular-nums text-[#a4adbf]">
-      <span className="text-lg leading-none text-[#2f6bff]">◷</span>
-      <span>{pad(h)} : {pad(m)} : {pad(sc)}</span>
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8, padding: "7px 12px",
+      borderRadius: 999, background: P.white, border: `1px solid ${P.border}`,
+      fontSize: 13, color: "#5f6375", boxShadow: "0 3px 12px rgba(32,39,78,0.04)",
+    }}>
+      <span style={{ fontSize: 18, color: P.blue, lineHeight: 1 }}>◷</span>
+      {s === 0
+        ? <span>Predictions closed</span>
+        : <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            {pad(Math.floor(s / 3600))} : {pad(Math.floor((s % 3600) / 60))} : {pad(s % 60)}
+          </span>
+      }
     </div>
   );
 }
 
-// ─── Picks tab ────────────────────────────────────────────────────────────────
+// ── Picks: match card ─────────────────────────────────────────────────────────
+function MatchCard({ match: m, pick, onPick, showStats }: {
+  match: Match;
+  pick: { home: ScoreVal; away: ScoreVal };
+  onPick: (h: ScoreVal, a: ScoreVal) => void;
+  showStats: boolean;
+}) {
+  const total = m.home.pct + m.draw.pct + m.away.pct;
+  const hPct = Math.round((m.home.pct / total) * 100);
+  const dPct = Math.round((m.draw.pct / total) * 100);
+  const aPct = 100 - hPct - dPct;
+  const maxP = Math.max(hPct, dPct, aPct);
+
+  function OddPill({ label, pct }: { label: string; pct: number }) {
+    const fav = pct === maxP;
+    const under = pct < 25 && label !== "X";
+    return (
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+        padding: "6px 0", borderRadius: 8, gap: 2,
+        background: fav ? "rgba(21,169,87,0.08)" : under ? "rgba(223,83,83,0.07)" : P.gray,
+        border: `1px solid ${fav ? "rgba(21,169,87,0.25)" : under ? "rgba(223,83,83,0.18)" : "transparent"}`,
+      }}>
+        <span style={{ fontSize: 8, fontWeight: 800, opacity: 0.6 }}>{label}</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: fav ? P.green : under ? P.red : P.ink }}>{pct}%</span>
+      </div>
+    );
+  }
+
+  const inputSt = (val: ScoreVal) => ({
+    width: 52, height: 58, padding: 0, textAlign: "center" as const,
+    fontSize: 24, fontWeight: 700, outline: "none", border: "none",
+    borderRadius: 10, transition: "all 0.15s",
+    background: val !== "" ? P.blueBg : P.gray,
+    color: val !== "" ? P.blue : P.ink,
+    boxShadow: val !== "" ? `inset 0 0 0 1.5px ${P.blue}` : `inset 0 0 0 1.5px ${P.border}`,
+  });
+
+  return (
+    <div style={{
+      background: P.white, borderRadius: 16, border: `1px solid ${P.border}`,
+      boxShadow: "0 5px 18px rgba(31,39,84,0.055)", marginBottom: 10, overflow: "hidden",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 13px 0", color: P.muted, fontSize: 11 }}>
+        <span>{m.gw} · {m.time}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c2c5d0", display: "inline-block" }} />
+          Open
+        </span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 1fr", alignItems: "center", padding: "8px 8px 14px", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
+          <Flag emoji={m.home.flag} size={68} />
+          <span style={{ fontSize: 13, fontWeight: 650, color: P.ink, textAlign: "center" }}>{m.home.name}</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="number" min={0} max={99} value={pick.home}
+              onChange={e => onPick(e.target.value === "" ? "" : Math.min(99, parseInt(e.target.value) || 0), pick.away)}
+              style={inputSt(pick.home)}
+            />
+            <span style={{ fontSize: 16, fontWeight: 700, color: P.muted }}>:</span>
+            <input
+              type="number" min={0} max={99} value={pick.away}
+              onChange={e => onPick(pick.home, e.target.value === "" ? "" : Math.min(99, parseInt(e.target.value) || 0))}
+              style={inputSt(pick.away)}
+            />
+          </div>
+          {showStats && (
+            <div style={{ display: "flex", gap: 4, width: "100%" }}>
+              <OddPill label="1" pct={hPct} />
+              <OddPill label="X" pct={dPct} />
+              <OddPill label="2" pct={aPct} />
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
+          <Flag emoji={m.away.flag} size={68} />
+          <span style={{ fontSize: 13, fontWeight: 650, color: P.ink, textAlign: "center" }}>{m.away.name}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Picks tab ─────────────────────────────────────────────────────────────────
 function PicksTab({ userId }: { userId: string | null }) {
   const [day, setDay] = useState(19);
   const [picks, setPicks] = useState<Record<string, { home: ScoreVal; away: ScoreVal }>>({});
@@ -203,109 +255,85 @@ function PicksTab({ userId }: { userId: string | null }) {
 
   useEffect(() => {
     if (!userId) return;
-    getUserPicks(userId).then((dbPicks: DBPick[]) => {
+    getUserPicks(userId).then((rows: DBPick[]) => {
       const map: Record<string, { home: ScoreVal; away: ScoreVal }> = {};
-      for (const p of dbPicks) map[p.match_id] = { home: p.home_score, away: p.away_score };
-      setPicks(prev => ({ ...map, ...prev }));
+      for (const r of rows) map[r.match_id] = { home: r.home_score, away: r.away_score };
+      setPicks(map);
     });
   }, [userId]);
 
   const dayMatches = MATCHES.filter(m => m.day === day);
-  const filled = dayMatches.filter(m => {
-    const p = picks[m.id];
-    return p && p.home !== "" && p.away !== "";
-  }).length;
-
-  function setPick(id: string, h: ScoreVal, a: ScoreVal) {
-    setPicks(prev => ({ ...prev, [id]: { home: h, away: a } }));
-  }
+  const filled = dayMatches.filter(m => { const p = picks[m.id]; return p && p.home !== "" && p.away !== ""; }).length;
 
   async function save() {
+    if (!userId || filled === 0) return;
     setSaved(true);
-    if (userId) {
-      const rows = dayMatches
-        .filter(m => picks[m.id]?.home !== "" && picks[m.id]?.away !== "")
-        .map(m => ({ matchId: m.id, homeScore: Number(picks[m.id].home), awayScore: Number(picks[m.id].away) }));
-      await savePicks(userId, rows);
-    }
-    setTimeout(() => setSaved(false), 2000);
+    const rows = dayMatches
+      .filter(m => picks[m.id]?.home !== "" && picks[m.id]?.away !== "")
+      .map(m => ({ matchId: m.id, homeScore: Number(picks[m.id].home), awayScore: Number(picks[m.id].away) }));
+    await savePicks(userId, rows);
+    setTimeout(() => setSaved(false), 2200);
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-[#0d0f15]">
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas, position: "relative" }}>
       <DayStrip selected={day} onSelect={setDay} />
-
-      <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-3">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px 9px" }}>
         <Countdown day={day} />
-        <label className="flex items-center gap-2 text-xs font-semibold text-[#8992a5]">
-          Market odds
-          <Switch
-            aria-label="Toggle market odds"
-            checked={showStats}
-            onCheckedChange={setShowStats}
-          />
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 650, color: P.muted, cursor: "pointer" }}>
+          Odds
+          <button onClick={() => setShowStats(s => !s)} style={{
+            width: 44, height: 26, borderRadius: 999, border: "none", cursor: "pointer",
+            padding: 3, background: showStats ? P.blue : "#d9dce7", transition: "background 0.15s",
+            display: "flex", alignItems: "center",
+          }}>
+            <div style={{
+              width: 20, height: 20, borderRadius: "50%", background: "#fff",
+              transform: showStats ? "translateX(18px)" : "translateX(0)",
+              transition: "transform 0.15s", boxShadow: "0 2px 5px rgba(0,0,0,0.18)",
+            }} />
+          </button>
         </label>
       </div>
 
-      {dayMatches.length > 0 && (
-        <div className="flex shrink-0 items-center justify-between px-4 pb-3 pt-1">
-          <span className="text-sm font-semibold text-white">
-            {new Date(2026, 5, day).toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </span>
-          <strong className="text-[11px] font-semibold text-[#737c8f]">
-            {filled} / {dayMatches.length}
-          </strong>
-        </div>
-      )}
-
-      <div className="no-scrollbar min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3">
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "4px 12px 0" }}>
         {dayMatches.length === 0 ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-3 text-[#737c8f]">
-            <span className="text-4xl">⚽</span>
-            <strong className="text-sm">No games today</strong>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 240, gap: 12, color: P.muted }}>
+            <span style={{ fontSize: 40 }}>⚽</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>No games this day</span>
           </div>
-        ) : (
-          dayMatches.map((m, index) => (
-            <PredictionMatchCard
-              index={index}
-              key={m.id}
-              match={m}
-              picks={picks[m.id] ?? { home: "", away: "" }}
-              onPick={(h, a) => setPick(m.id, h, a)}
-            />
-          ))
-        )}
-        <div className="h-24" />
+        ) : dayMatches.map(m => (
+          <MatchCard
+            key={m.id} match={m}
+            pick={picks[m.id] ?? { home: "", away: "" }}
+            onPick={(h, a) => setPicks(prev => ({ ...prev, [m.id]: { home: h, away: a } }))}
+            showStats={showStats}
+          />
+        ))}
+        <div style={{ height: 88 }} />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0d0f15] via-[#0d0f15]/95 to-transparent px-4 pb-3 pt-8">
-        <Button
-          className={`pointer-events-auto w-full ${
-            saved ? "bg-[#25a95d] hover:bg-[#25a95d]" : ""
-          }`}
-          size="lg"
-          onClick={save}
-          disabled={filled === 0}
-          type="button"
-        >
-          {saved
-            ? <><Check size={16} /> Predictions locked!</>
-            : filled === dayMatches.length && dayMatches.length > 0
-              ? `🔒  Lock all ${filled} predictions`
-              : filled > 0
-                ? `Lock ${filled} of ${dayMatches.length} predictions`
-                : "Enter your predictions above"}
-        </Button>
+      <div style={{
+        position: "absolute", inset: "auto 0 0 0", padding: "26px 16px 12px",
+        background: `linear-gradient(to top, ${P.canvas} 60%, transparent)`,
+        pointerEvents: "none",
+      }}>
+        <button onClick={save} disabled={filled === 0 || saved} style={{
+          width: "100%", minHeight: 52, borderRadius: 13, border: "none",
+          cursor: filled === 0 ? "default" : "pointer", fontSize: 14, fontWeight: 750,
+          background: saved ? P.green : filled === 0 ? P.border : `linear-gradient(180deg, #4265ff, ${P.blue})`,
+          color: filled === 0 ? P.muted : "#fff",
+          boxShadow: filled > 0 && !saved ? "0 9px 24px rgba(49,87,246,0.24)" : "none",
+          transition: "all 0.2s", pointerEvents: "auto",
+        }}>
+          {saved ? "✓ Predictions saved!" : filled === 0 ? "Enter a prediction above" : `🔒 Lock ${filled} of ${dayMatches.length} predictions`}
+        </button>
       </div>
     </div>
   );
 }
 
-// ─── Results tab ──────────────────────────────────────────────────────────────
+// ── Results tab ───────────────────────────────────────────────────────────────
 function ResultsTab() {
   const [day, setDay] = useState(17);
   const dayResults = PAST.filter(m => m.day === day);
@@ -313,15 +341,11 @@ function ResultsTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <DayStrip selected={day} onSelect={setDay} />
-
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas, padding: "12px 12px 0" }}>
         {dayResults.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 12 }}>
-            <span style={{ fontSize: 48 }}>⏳</span>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: M.text, textTransform: "uppercase" }}>
-              NO AVAILABLE DATA
-            </p>
-            <p style={{ margin: 0, fontSize: 13, color: M.sub }}>No results for this gameweek</p>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 240, gap: 12, color: P.muted }}>
+            <span style={{ fontSize: 40 }}>⏳</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>No results yet</span>
           </div>
         ) : dayResults.map(m => {
           const homeWon = m.home.score > m.away.score;
@@ -333,82 +357,56 @@ function ResultsTab() {
             (awayWon && m.myPick.away > m.myPick.home) ||
             (isDraw  && m.myPick.home === m.myPick.away)
           );
-          const winPct = homeWon ? m.home.pct : awayWon ? m.away.pct : m.draw.pct;
+          const winPct    = homeWon ? m.home.pct : awayWon ? m.away.pct : m.draw.pct;
           const earnedPts = exact ? pts(winPct) * 3 : correct ? pts(winPct) : 0;
 
           return (
-            <div key={m.id} style={{ background: M.card, borderBottom: `1px solid ${M.border}` }}>
-              {/* Sub-header */}
-              <div style={{ padding: "8px 16px 4px", display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 11 }}>🏆</span>
-                <span style={{ fontSize: 11, color: M.sub }}>{m.gw} · {m.date}</span>
+            <div key={m.id} style={{
+              background: P.white, borderRadius: 16, border: `1px solid ${P.border}`,
+              boxShadow: "0 5px 18px rgba(31,39,84,0.055)", marginBottom: 10, overflow: "hidden",
+            }}>
+              <div style={{ padding: "10px 13px 0", display: "flex", gap: 6, alignItems: "center", color: P.muted, fontSize: 11 }}>
+                <span>🏆</span><span>{m.gw} · {m.date}</span>
               </div>
-
-              {/* Match row */}
               <div style={{ display: "flex", alignItems: "center", padding: "10px 12px 14px", gap: 8 }}>
-                {/* Home */}
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <CircleFlag flag={m.home.flag} size={68} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: M.text, textAlign: "center" }}>{m.home.name}</span>
+                  <Flag emoji={m.home.flag} size={68} />
+                  <span style={{ fontSize: 12, fontWeight: 650, color: P.ink, textAlign: "center" }}>{m.home.name}</span>
                 </div>
-
-                {/* Score + pick */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                  {/* Final score */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <div style={{
-                    padding: "8px 20px", borderRadius: 10,
-                    background: M.mute, border: `2px solid ${exact ? M.gold : correct ? M.green : M.border}`,
+                    padding: "8px 20px", borderRadius: 10, background: P.gray,
+                    border: `2px solid ${exact ? P.blue : correct ? P.green : P.border}`,
                   }}>
-                    <span style={{ fontSize: 22, fontWeight: 900, color: M.text, fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ fontSize: 22, fontWeight: 900, color: P.ink, fontVariantNumeric: "tabular-nums" }}>
                       {m.home.score} : {m.away.score}
                     </span>
                   </div>
-
-                  {/* My pick + points */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {m.myPick && (
-                      <span style={{ fontSize: 11, color: M.sub }}>
-                        Pick: {m.myPick.home}–{m.myPick.away}
-                      </span>
-                    )}
+                    {m.myPick && <span style={{ fontSize: 11, color: P.muted }}>Pick: {m.myPick.home}–{m.myPick.away}</span>}
                     {earnedPts > 0 && (
-                      <div style={{
-                        padding: "3px 10px", borderRadius: 8,
-                        background: exact ? M.gold : "rgba(21,169,87,0.12)",
-                        border: `1px solid ${exact ? M.gold : M.green}`,
-                      }}>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: exact ? "#fff" : M.green }}>
-                          +{earnedPts} pts {exact ? "🎯" : "✓"}
-                        </span>
+                      <div style={{ padding: "3px 10px", borderRadius: 8, background: exact ? P.blue : P.greenBg, border: `1px solid ${exact ? P.blue : P.green}` }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: exact ? "#fff" : P.green }}>+{earnedPts} pts {exact ? "🎯" : "✓"}</span>
                       </div>
                     )}
-                    {!earnedPts && m.myPick && (
-                      <span style={{ fontSize: 11, color: M.red }}>✗ miss</span>
-                    )}
+                    {!earnedPts && m.myPick && <span style={{ fontSize: 11, color: P.red }}>✗ miss</span>}
+                    {!m.myPick && <span style={{ fontSize: 11, color: P.muted }}>No pick</span>}
                   </div>
                 </div>
-
-                {/* Away */}
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <CircleFlag flag={m.away.flag} size={68} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: M.text, textAlign: "center" }}>{m.away.name}</span>
+                  <Flag emoji={m.away.flag} size={68} />
+                  <span style={{ fontSize: 12, fontWeight: 650, color: P.ink, textAlign: "center" }}>{m.away.name}</span>
                 </div>
               </div>
-
-              {/* My odd / My prediction row — MPP style */}
               {m.myPick && (
-                <div style={{
-                  display: "flex", alignItems: "center",
-                  padding: "8px 16px 12px", gap: 12,
-                  borderTop: `1px solid ${M.border}`,
-                }}>
+                <div style={{ display: "flex", gap: 20, padding: "8px 16px 12px", borderTop: `1px solid ${P.border}` }}>
                   <div>
-                    <p style={{ margin: 0, fontSize: 10, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>My odd</p>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: M.text }}>{earnedPts > 0 ? pts(winPct) : "–"}</p>
+                    <p style={{ margin: 0, fontSize: 9, color: P.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>My odd</p>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: P.ink }}>{earnedPts > 0 ? pts(winPct) : "–"}</p>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontSize: 10, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>My prediction</p>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: M.text }}>{m.myPick.home} – {m.myPick.away}</p>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 9, color: P.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>My prediction</p>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: P.ink }}>{m.myPick.home} – {m.myPick.away}</p>
                   </div>
                 </div>
               )}
@@ -421,68 +419,48 @@ function ResultsTab() {
   );
 }
 
-// ─── Ranking tab ──────────────────────────────────────────────────────────────
+// ── Ranking tab ───────────────────────────────────────────────────────────────
 function RankingTab({ user }: { user: { name: string; avatar: string } }) {
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   useEffect(() => { getLeaderboard().then(setBoard); }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: M.bg }}>
-      {/* Table header */}
-      <div style={{
-        display: "flex", alignItems: "center", padding: "10px 16px",
-        borderBottom: `1px solid ${M.border}`,
-      }}>
-        <span style={{ flex: 1, fontSize: 11, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>Players</span>
-        <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Good</span>
-        <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Exacts</span>
-        <span style={{ width: 60, textAlign: "right", fontSize: 11, color: M.gold, textTransform: "uppercase" }}>Points</span>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: `1px solid ${P.border}`, background: P.white }}>
+        <span style={{ flex: 1, fontSize: 10, color: P.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>Players</span>
+        <span style={{ width: 44, textAlign: "center", fontSize: 10, color: P.muted, textTransform: "uppercase", fontWeight: 800 }}>Good</span>
+        <span style={{ width: 44, textAlign: "center", fontSize: 10, color: P.muted, textTransform: "uppercase", fontWeight: 800 }}>Exact</span>
+        <span style={{ width: 56, textAlign: "right", fontSize: 10, color: P.blue, textTransform: "uppercase", fontWeight: 800 }}>Pts</span>
       </div>
-
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
         {board.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 8 }}>
-            <span style={{ fontSize: 32 }}>🏆</span>
-            <span style={{ fontSize: 13, color: M.sub }}>No picks submitted yet</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 240, gap: 12, color: P.muted }}>
+            <span style={{ fontSize: 40 }}>🏆</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>No picks yet</span>
           </div>
         ) : board.map((p, i) => {
           const isMe = p.name === user.name;
           return (
-            <div key={p.user_id} style={{
-              display: "flex", alignItems: "center", padding: "14px 16px",
-              borderBottom: `1px solid ${M.border}`,
-              background: isMe ? M.goldBg : "transparent",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
-                <span style={{ fontSize: 14, fontWeight: 800, width: 20, color: i === 0 ? M.gold : M.sub }}>
-                  {i + 1}
+            <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${P.border}`, background: isMe ? P.blueBg : P.white }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, width: 20, color: i === 0 ? P.blue : P.muted }}>{i + 1}</span>
+                <div style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0, background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: P.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {p.name}{isMe && <span style={{ fontSize: 11, color: P.blue, marginLeft: 6 }}>· you</span>}
                 </span>
-                <div style={{
-                  width: 42, height: 42, borderRadius: "50%",
-                  background: M.mute, display: "flex", alignItems: "center",
-                  justifyContent: "center", fontSize: 24,
-                  border: isMe ? `2px solid ${M.gold}` : "none",
-                }}>{p.avatar}</div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: M.text }}>
-                    {p.name}
-                    {isMe && <span style={{ fontSize: 11, color: M.gold, marginLeft: 6 }}>· you</span>}
-                  </p>
-                </div>
               </div>
-              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good_picks}</span>
-              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact_picks}</span>
-              <span style={{ width: 60, textAlign: "right", fontSize: 18, fontWeight: 900, color: M.gold }}>{p.total_pts}</span>
+              <span style={{ width: 44, textAlign: "center", fontSize: 13, color: P.muted }}>{p.good_picks}</span>
+              <span style={{ width: 44, textAlign: "center", fontSize: 13, color: P.muted }}>{p.exact_picks}</span>
+              <span style={{ width: 56, textAlign: "right", fontSize: 17, fontWeight: 900, color: P.blue }}>{p.total_pts}</span>
             </div>
           );
         })}
-
       </div>
     </div>
   );
 }
 
-// ─── League tab ───────────────────────────────────────────────────────────────
+// ── League tab ────────────────────────────────────────────────────────────────
 function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
   const [sub, setSub] = useState<"ranking" | "settings">("ranking");
   const [copied, setCopied] = useState(false);
@@ -491,64 +469,40 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   useEffect(() => { getLeaderboard().then(setBoard); }, []);
 
-  async function submitEmail() {
-    if (!email.includes("@")) return;
-    setWaitlist("loading");
-    try {
-      await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-    } catch {}
-    setWaitlist("done");
-  }
-
   function share() {
-    const text = `Join my WC2026 picks league! Code: ${LEAGUE_CODE}`;
     if (navigator.share) {
-      navigator.share({ title: "ScoreVault", text, url: window.location.href }).catch(() => {});
+      navigator.share({ title: "ScoreVault", text: `Join my WC2026 picks league! Code: ${LEAGUE_CODE}`, url: window.location.href }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(`${LEAGUE_CODE}`);
+      navigator.clipboard.writeText(LEAGUE_CODE);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   }
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* League hero — MPP style blurred image header */}
-      <div style={{
-        background: `linear-gradient(to bottom, rgba(49,87,246,0.06), ${M.bg})`,
-        padding: "20px 16px 0",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-      }}>
-        <div style={{
-          width: 80, height: 80, borderRadius: 18,
-          background: M.mute, display: "flex", alignItems: "center",
-          justifyContent: "center", fontSize: 36,
-          border: `2px solid ${M.gold}55`,
-        }}>🏆</div>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: M.text, letterSpacing: "0.04em" }}>
-          WC2026 SQUAD
-        </h2>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6, padding: "4px 12px",
-          borderRadius: 20, background: M.mute,
-        }}>
-          <span style={{ fontSize: 13 }}>👥</span>
-          <span style={{ fontSize: 12, color: M.text, fontWeight: 600 }}>{board.length}</span>
-        </div>
+  async function submitEmail() {
+    if (!email.includes("@")) return;
+    setWaitlist("loading");
+    try { await fetch("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) }); } catch {}
+    setWaitlist("done");
+  }
 
-        {/* Sub-tabs */}
-        <div style={{ display: "flex", width: "100%", marginTop: 8 }}>
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas }}>
+      <div style={{ background: `linear-gradient(to bottom, rgba(49,87,246,0.06), ${P.canvas})`, padding: "20px 16px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 72, height: 72, borderRadius: 18, background: P.blueBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, border: "1px solid rgba(49,87,246,0.2)" }}>🏆</div>
+        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: P.ink }}>WC2026 SQUAD</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 12px", borderRadius: 20, background: P.white, border: `1px solid ${P.border}` }}>
+          <span>👥</span>
+          <span style={{ fontSize: 12, color: P.ink, fontWeight: 600 }}>{board.length} player{board.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div style={{ display: "flex", width: "100%", marginTop: 8, borderBottom: `1px solid ${P.border}` }}>
           {(["ranking", "settings"] as const).map(t => (
             <button key={t} onClick={() => setSub(t)} style={{
-              flex: 1, padding: "12px 0",
-              background: sub === t ? M.gold : "transparent",
-              border: "none", color: sub === t ? "#fff" : M.sub,
-              fontSize: 13, fontWeight: 700, cursor: "pointer",
-              textTransform: "capitalize", transition: "all 0.15s",
+              flex: 1, padding: "12px 0", border: "none", cursor: "pointer",
+              background: "transparent", fontSize: 13, fontWeight: 700,
+              color: sub === t ? P.blue : P.muted,
+              borderBottom: `3px solid ${sub === t ? P.blue : "transparent"}`,
+              textTransform: "capitalize", transition: "color 0.15s",
             }}>
               {t === "ranking" ? "Ranking" : "Settings"}
             </button>
@@ -556,102 +510,52 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
         </div>
       </div>
 
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
         {sub === "ranking" ? (
           <>
-            {/* Table */}
-            <div style={{ borderTop: `1px solid ${M.border}` }}>
-              <div style={{ display: "flex", padding: "8px 16px", borderBottom: `1px solid ${M.border}` }}>
-                <span style={{ flex: 1, fontSize: 11, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>Players</span>
-                <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Good</span>
-                <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Exacts</span>
-                <span style={{ width: 56, textAlign: "right", fontSize: 11, color: M.gold, textTransform: "uppercase" }}>Points</span>
-              </div>
-              {board.map((p, i) => {
-                const isMe = p.name === user.name;
-                return (
-                  <div key={p.user_id} style={{
-                    display: "flex", alignItems: "center", padding: "14px 16px",
-                    borderBottom: `1px solid ${M.border}`,
-                    background: isMe ? M.goldBg : "transparent",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, width: 18, color: i === 0 ? M.gold : M.sub }}>{i + 1}</span>
-                      <div style={{
-                        width: 40, height: 40, borderRadius: "50%", fontSize: 22,
-                        background: M.mute, display: "flex", alignItems: "center", justifyContent: "center",
-                        border: isMe ? `2px solid ${M.gold}` : "none",
-                      }}>{p.avatar}</div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: M.text }}>
-                        {p.name}{isMe && <span style={{ color: M.gold, fontSize: 11, marginLeft: 6 }}>· you</span>}
-                      </span>
-                    </div>
-                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good_picks}</span>
-                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact_picks}</span>
-                    <span style={{ width: 56, textAlign: "right", fontSize: 17, fontWeight: 900, color: M.gold }}>{p.total_pts}</span>
+            {board.map((p, i) => {
+              const isMe = p.name === user.name;
+              return (
+                <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${P.border}`, background: isMe ? P.blueBg : P.white }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, width: 18, color: i === 0 ? P.blue : P.muted }}>{i + 1}</span>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: P.ink }}>
+                      {p.name}{isMe && <span style={{ color: P.blue, fontSize: 11, marginLeft: 6 }}>· you</span>}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Invite */}
-            <div style={{ padding: "16px" }}>
-              <button onClick={share} style={{
-                width: "100%", padding: "18px", borderRadius: 14, border: `1.5px solid ${M.border}`,
-                background: "transparent", color: M.text,
-                fontSize: 15, fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}>
+                  <span style={{ fontSize: 17, fontWeight: 900, color: P.blue }}>{p.total_pts}</span>
+                </div>
+              );
+            })}
+            <div style={{ padding: 16 }}>
+              <button onClick={share} style={{ width: "100%", padding: 18, borderRadius: 14, border: `1.5px solid ${P.border}`, background: P.white, color: P.ink, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
                 + Invite a friend
               </button>
             </div>
           </>
         ) : (
-          <div style={{ padding: "16px" }}>
-            {/* Copy code — MPP style full-width row */}
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "16px", background: M.card, borderRadius: 0,
-              borderBottom: `1px solid ${M.border}`,
-            }}>
-              <span style={{ fontSize: 15, color: M.text }}>Copy code</span>
-              <button onClick={share} style={{
-                background: "transparent", border: "none",
-                fontSize: 15, fontWeight: 700, color: M.gold, cursor: "pointer",
-              }}>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, background: P.white, borderRadius: 14, border: `1px solid ${P.border}` }}>
+              <span style={{ fontSize: 15, color: P.ink }}>Copy code</span>
+              <button onClick={share} style={{ background: "none", border: "none", fontSize: 15, fontWeight: 700, color: P.blue, cursor: "pointer" }}>
                 {copied ? "Copied!" : LEAGUE_CODE}
               </button>
             </div>
-
-            <div className="sv-final-cta">
-              <div className="sv-final-cta-badge">LIMITED DROP · WORLD CUP 2026</div>
-              <div className="sv-final-cta-hero">
-                <div className="sv-final-cta-icon">🏟️</div>
-                <div>
-                  <p className="sv-final-cta-kicker">PLAY FOR THE FINAL</p>
-                  <h3>Win 2 seats in NYC</h3>
-                </div>
-              </div>
-              <p className="sv-final-cta-copy">
-                Join the first ScoreVault money league. Lock USDC, beat your friends,
-                and play for two seats at the World Cup Final.
-              </p>
-              <div className="sv-final-cta-prize">
-                <span>Prize pool</span>
-                <strong>Winner takes the pot + 2 final seats</strong>
-              </div>
+            <div style={{ borderRadius: 18, padding: 18, background: "linear-gradient(145deg, #253ccf, #3157f6 52%, #172784)", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 18px 38px rgba(49,87,246,0.22)" }}>
+              <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.08em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "5px 8px", borderRadius: 5, marginBottom: 16 }}>LIMITED DROP · WORLD CUP 2026</div>
+              <h3 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 26, color: "#fff", letterSpacing: "0.02em" }}>Win 2 seats in NYC</h3>
+              <p style={{ margin: "0 0 14px", fontSize: 12, color: "#e2e6ff", lineHeight: 1.55 }}>Lock USDC, beat your friends, and play for two seats at the World Cup Final.</p>
               {waitlist === "done" ? (
-                <div className="sv-final-cta-success">
+                <div style={{ padding: 14, borderRadius: 10, background: "rgba(17,113,57,0.28)", border: "1px solid rgba(255,255,255,0.24)", color: "#fff", fontSize: 12, fontWeight: 800, textAlign: "center" }}>
                   ✓ You&apos;re on the priority list
                 </div>
               ) : (
-                <div className="sv-final-cta-form">
-                  <input
-                    type="email" placeholder="Enter your email"
-                    value={email} onChange={e => setEmail(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && submitEmail()}
-                  />
-                  <button onClick={submitEmail} disabled={!email.includes("@") || waitlist === "loading"}>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <input type="email" placeholder="Enter your email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && submitEmail()}
+                    style={{ padding: "13px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.28)", background: "rgba(255,255,255,0.13)", color: "#fff", fontSize: 13, outline: "none" }} />
+                  <button onClick={submitEmail} disabled={!email.includes("@") || waitlist === "loading"}
+                    style={{ padding: 14, borderRadius: 10, border: "none", background: "#fff", color: "#1637d5", fontSize: 12, fontWeight: 900, cursor: "pointer", opacity: email.includes("@") ? 1 : 0.6 }}>
                     {waitlist === "loading" ? "Joining…" : "Get priority access →"}
                   </button>
                 </div>
@@ -664,7 +568,7 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
   );
 }
 
-// ─── Onboarding ───────────────────────────────────────────────────────────────
+// ── Onboarding ────────────────────────────────────────────────────────────────
 function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
@@ -672,88 +576,100 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
   const valid = name.trim().length >= 2;
 
   return (
-    <div style={{
-      height: "100%", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center",
-      padding: "32px 24px", background: M.bg,
-    }}>
-      <div style={{
-        width: 80, height: 80, borderRadius: 24, marginBottom: 20,
-        background: M.gold, display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 40, boxShadow: `0 8px 32px ${M.gold}60`,
-      }}>⚽</div>
-      <h1 style={{ fontSize: 28, fontWeight: 900, color: M.text, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-        ScoreVault
-      </h1>
-      <p style={{ fontSize: 13, color: M.sub, margin: "0 0 36px", textAlign: "center", lineHeight: 1.6 }}>
-        {step === 1 ? "Pick scores. Climb the board.\nChallenge your friends." : `Nice, ${name.trim()}! Pick your avatar`}
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px", background: P.canvas }}>
+      <div style={{ width: 80, height: 80, borderRadius: 24, marginBottom: 20, background: P.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, boxShadow: "0 8px 32px rgba(49,87,246,0.4)" }}>⚽</div>
+      <h1 style={{ fontSize: 28, fontWeight: 900, color: P.ink, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>ScoreVault</h1>
+      <p style={{ fontSize: 13, color: P.muted, margin: "0 0 36px", textAlign: "center", lineHeight: 1.6 }}>
+        {step === 1 ? "Pick scores. Climb the board. Challenge your friends." : `Nice, ${name.trim()}! Pick your avatar`}
       </p>
-
       {step === 1 ? (
         <>
-          <input
-            type="text" autoFocus placeholder="Your name"
-            value={name} onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
-            style={{
-              width: "100%", padding: "16px 20px", marginBottom: 14,
-              borderRadius: 14, outline: "none", boxSizing: "border-box",
-              border: `2px solid ${valid ? M.gold : M.border}`,
-              background: M.card, fontSize: 18, fontWeight: 700,
-              color: M.text, transition: "border-color 0.2s",
-            }}
-          />
-          <button onClick={() => valid && setStep(2)} disabled={!valid} style={{
-            width: "100%", padding: "17px", borderRadius: 14, border: "none",
-            background: valid ? M.gold : M.mute,
-            color: valid ? "#fff" : M.sub, fontSize: 15, fontWeight: 800,
-            cursor: valid ? "pointer" : "default",
-            boxShadow: valid ? `0 4px 20px ${M.gold}50` : "none",
-          }}>Continue →</button>
+          <input autoFocus placeholder="Your name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
+            style={{ width: "100%", padding: "16px 20px", marginBottom: 14, borderRadius: 14, outline: "none", boxSizing: "border-box", border: `2px solid ${valid ? P.blue : P.border}`, background: P.white, fontSize: 18, fontWeight: 700, color: P.ink, transition: "border-color 0.2s" }} />
+          <button onClick={() => valid && setStep(2)} disabled={!valid}
+            style={{ width: "100%", padding: 17, borderRadius: 14, border: "none", background: valid ? P.blue : P.border, color: valid ? "#fff" : P.muted, fontSize: 15, fontWeight: 800, cursor: valid ? "pointer" : "default", boxShadow: valid ? "0 4px 20px rgba(49,87,246,0.35)" : "none" }}>
+            Continue →
+          </button>
         </>
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, width: "100%", marginBottom: 20 }}>
             {AVATARS.map(a => (
-              <button key={a} onClick={() => setAvatar(a)} style={{
-                fontSize: 36, padding: "14px 0", borderRadius: 14, cursor: "pointer",
-                background: avatar === a ? M.goldBg : M.card,
-                border: `2px solid ${avatar === a ? M.gold : M.border}`,
-              }}>{a}</button>
+              <button key={a} onClick={() => setAvatar(a)}
+                style={{ fontSize: 36, padding: "14px 0", borderRadius: 14, cursor: "pointer", background: avatar === a ? P.blueBg : P.white, border: `2px solid ${avatar === a ? P.blue : P.border}` }}>{a}</button>
             ))}
           </div>
-          <button onClick={() => onDone(name.trim(), avatar)} style={{
-            width: "100%", padding: "17px", borderRadius: 14, border: "none",
-            background: M.gold, color: "#fff", fontSize: 15, fontWeight: 800,
-            cursor: "pointer", boxShadow: `0 4px 20px ${M.gold}50`,
-          }}>Let&apos;s play! 🚀</button>
+          <button onClick={() => onDone(name.trim(), avatar)}
+            style={{ width: "100%", padding: 17, borderRadius: 14, border: "none", background: P.blue, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px rgba(49,87,246,0.35)" }}>
+            Let&apos;s play! 🚀
+          </button>
         </>
       )}
     </div>
   );
 }
 
-// ─── App root ─────────────────────────────────────────────────────────────────
+// ── Bottom nav ────────────────────────────────────────────────────────────────
+const TAB_TITLES: Record<Tab, string> = {
+  picks: "MY PREDICTIONS", results: "RESULTS", ranking: "STANDINGS", league: "MY LEAGUES",
+};
+
+function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  const items: { id: Tab; label: string; icon: string | React.JSX.Element }[] = [
+    { id: "picks", label: "Predictions", icon: (
+      <div style={{ width: 26, height: 22, borderRadius: 6, fontSize: 9, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", background: tab === "picks" ? P.blue : "#a8abba", color: "#fff" }}>1:1</div>
+    )},
+    { id: "results", label: "Results", icon: <span style={{ fontSize: 22, filter: tab === "results" ? "none" : "grayscale(1) opacity(0.5)" }}>⚽</span> },
+    { id: "ranking", label: "Ranking", icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "ranking" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+        <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
+      </svg>
+    )},
+    { id: "league", label: "My leagues", icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "league" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    )},
+  ];
+
+  return (
+    <nav style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", minHeight: 68, background: P.white, borderTop: `1px solid ${P.border}`, boxShadow: "0 -8px 24px rgba(38,45,82,0.06)", paddingBottom: "env(safe-area-inset-bottom, 0)" }}>
+      {items.map(item => (
+        <button key={item.id} onClick={() => setTab(item.id)} style={{
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          gap: 4, border: "none", cursor: "pointer", background: "transparent", padding: "8px 2px",
+          color: tab === item.id ? P.blue : "#9a9eaf",
+          borderTop: `3px solid ${tab === item.id ? P.blue : "transparent"}`,
+          transition: "color 0.15s",
+        }}>
+          {item.icon}
+          <span style={{ fontSize: 10, fontWeight: tab === item.id ? 700 : 500, lineHeight: 1 }}>{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// ── App root ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [tab, setTab]   = useState<Tab>("picks");
+  const [tab, setTab] = useState<Tab>("picks");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const hydrationTimeout = setTimeout(() => {
-      try {
-        const savedUser = localStorage.getItem("sv_user");
-        if (savedUser) setUser(JSON.parse(savedUser));
-      } catch {}
+    const t = setTimeout(() => {
+      try { const s = localStorage.getItem("sv_user"); if (s) setUser(JSON.parse(s)); } catch {}
       setReady(true);
     }, 0);
-
-    ensureSession()
-      .then(setUserId)
-      .catch(() => setUserId(null));
-
-    return () => clearTimeout(hydrationTimeout);
+    ensureSession().then(setUserId).catch(() => setUserId(null));
+    return () => clearTimeout(t);
   }, []);
 
   async function onboard(name: string, avatar: string) {
@@ -766,31 +682,37 @@ export default function App() {
 
   if (!ready) return null;
 
-  const TAB_TITLES: Record<Tab, string> = {
-    picks: "MY PREDICTIONS",
-    results: "RESULTS",
-    leaderboard: "STANDINGS",
-    league: "MY LEAGUES & CHALLENGES",
-  };
-
-  return (
-    !user ? (
-      <div className="fixed inset-0 grid place-items-center bg-[#e9ecf8]">
-        <div className="h-[min(100dvh,932px)] w-[min(100vw,430px)] overflow-hidden bg-[#f5f6fb]">
+  if (!user) {
+    return (
+      <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
+        <div style={{ height: "min(100dvh, 932px)", width: "min(100vw, 430px)", overflow: "hidden" }}>
           <Onboarding onDone={onboard} />
         </div>
       </div>
-    ) : (
-      <AppShell
-        activeTab={tab}
-        onTabChange={setTab}
-        title={TAB_TITLES[tab]}
-      >
-        {tab === "picks"       && <PicksTab userId={userId} />}
-        {tab === "results"     && <ResultsTab />}
-        {tab === "leaderboard" && <RankingTab user={user} />}
-        {tab === "league"      && <LeagueTab user={user} />}
-      </AppShell>
-    )
+    );
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", width: "min(100vw, 430px)", height: "min(100dvh, 932px)", overflow: "hidden", background: P.canvas, boxShadow: "0 28px 90px rgba(31,39,84,0.18), 0 0 0 1px rgba(30,37,72,0.05)" }}>
+        <header style={{ display: "grid", gridTemplateColumns: "92px 1fr 92px", alignItems: "center", minHeight: 64, padding: "max(0px,env(safe-area-inset-top)) 14px 0", background: P.white, borderBottom: `1px solid ${P.border}`, boxShadow: "0 4px 18px rgba(32,39,78,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px 3px 3px", borderRadius: 999, background: P.blueBg, border: "1px solid #d9ddff", width: "fit-content" }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: P.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900, color: "#fff" }}>SV</div>
+            <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: P.blue }}>BASE</span>
+          </div>
+          <h1 style={{ margin: 0, textAlign: "center", fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: "-0.02em" }}>{TAB_TITLES[tab]}</h1>
+          <div />
+        </header>
+
+        <main style={{ position: "relative", flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {tab === "picks"   && <PicksTab userId={userId} />}
+          {tab === "results" && <ResultsTab />}
+          {tab === "ranking" && <RankingTab user={user} />}
+          {tab === "league"  && <LeagueTab user={user} />}
+        </main>
+
+        <BottomNav tab={tab} setTab={setTab} />
+      </div>
+    </div>
   );
 }
