@@ -177,9 +177,7 @@ function MatchCard({ match, picks, onPick }: {
   const homePct = liveOdds?.home ?? match.home.pct;
   const drawPct = liveOdds?.draw ?? match.draw.pct;
   const awayPct = liveOdds?.away ?? match.away.pct;
-  const ptsH = pts(homePct);
-  const ptsD = pts(drawPct);
-  const ptsA = pts(awayPct);
+  const favoritePct = Math.max(homePct, drawPct, awayPct);
 
   return (
     <article className="sv-match-card">
@@ -208,13 +206,16 @@ function MatchCard({ match, picks, onPick }: {
 
           <div className="sv-odds-grid">
             {[
-              { label: "1", val: ptsH, pct: homePct, active: h !== "" && a !== "" && Number(h) > Number(a) },
-              { label: "X", val: ptsD, pct: drawPct, active: h !== "" && a !== "" && Number(h) === Number(a) },
-              { label: "2", val: ptsA, pct: awayPct, active: h !== "" && a !== "" && Number(h) < Number(a) },
-            ].map(({ label, val, pct, active }) => (
-              <div key={label} className={`sv-odd${active ? " is-active" : ""}`}>
-                <span className="sv-odd-value">{val}</span>
-                <span className="sv-odd-pct">{pct}%</span>
+              { label: "1", pct: homePct, active: h !== "" && a !== "" && Number(h) > Number(a) },
+              { label: "X", pct: drawPct, active: h !== "" && a !== "" && Number(h) === Number(a) },
+              { label: "2", pct: awayPct, active: h !== "" && a !== "" && Number(h) < Number(a) },
+            ].map(({ label, pct, active }) => (
+              <div
+                key={label}
+                className={`sv-odd ${pct === favoritePct ? "is-favorite" : "is-underdog"}${active ? " is-active" : ""}`}
+              >
+                <span className="sv-odd-label">{label}</span>
+                <span className="sv-odd-value">{pct}%</span>
               </div>
             ))}
           </div>
@@ -733,44 +734,36 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
               </button>
             </div>
 
-            {/* Love money CTA */}
-            <div style={{
-              marginTop: 24, padding: "20px", borderRadius: 16,
-              background: "#1A1506", border: `1px solid ${M.gold}33`,
-            }}>
-              <p style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 900, color: M.text }}>
-                🏟️ 2 spots at the NYC Final
+            <div className="sv-final-cta">
+              <div className="sv-final-cta-badge">LIMITED DROP · WORLD CUP 2026</div>
+              <div className="sv-final-cta-hero">
+                <div className="sv-final-cta-icon">🏟️</div>
+                <div>
+                  <p className="sv-final-cta-kicker">PLAY FOR THE FINAL</p>
+                  <h3>Win 2 seats in NYC</h3>
+                </div>
+              </div>
+              <p className="sv-final-cta-copy">
+                Join the first ScoreVault money league. Lock USDC, beat your friends,
+                and play for two seats at the World Cup Final.
               </p>
-              <p style={{ margin: "0 0 16px", fontSize: 13, color: M.sub, lineHeight: 1.6 }}>
-                Real money leagues dropping soon. Winner takes the pot.
-              </p>
+              <div className="sv-final-cta-prize">
+                <span>Prize pool</span>
+                <strong>Winner takes the pot + 2 final seats</strong>
+              </div>
               {waitlist === "done" ? (
-                <div style={{ padding: "14px", borderRadius: 12, background: "#0D1F0D", textAlign: "center" }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: M.green }}>
-                    ✓ You&apos;re on the list
-                  </span>
+                <div className="sv-final-cta-success">
+                  ✓ You&apos;re on the priority list
                 </div>
               ) : (
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="sv-final-cta-form">
                   <input
-                    type="email" placeholder="your@email.com"
+                    type="email" placeholder="Enter your email"
                     value={email} onChange={e => setEmail(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && submitEmail()}
-                    style={{
-                      flex: 1, padding: "13px 14px", borderRadius: 12,
-                      background: M.mute, border: "none", color: M.text,
-                      fontSize: 14, outline: "none",
-                    }}
                   />
-                  <button onClick={submitEmail} disabled={!email.includes("@") || waitlist === "loading"} style={{
-                    padding: "13px 16px", borderRadius: 12, border: "none",
-                    background: email.includes("@") ? M.gold : M.mute,
-                    color: email.includes("@") ? "#000" : M.sub,
-                    fontSize: 14, fontWeight: 700,
-                    cursor: email.includes("@") ? "pointer" : "default",
-                    whiteSpace: "nowrap",
-                  }}>
-                    {waitlist === "loading" ? "…" : "Count me in"}
+                  <button onClick={submitEmail} disabled={!email.includes("@") || waitlist === "loading"}>
+                    {waitlist === "loading" ? "Joining…" : "Get priority access →"}
                   </button>
                 </div>
               )}
