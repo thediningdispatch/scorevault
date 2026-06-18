@@ -2,13 +2,8 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Bell,
   Check,
-  ChevronLeft,
-  ChevronRight,
-  MessageSquare,
   Trophy,
-  UserRound,
   Users,
 } from "lucide-react";
 
@@ -34,7 +29,7 @@ function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pc
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ScoreVal = number | "";
-type Tab = "picks" | "results" | "leaderboard" | "league" | "profile";
+type Tab = "picks" | "results" | "leaderboard" | "league";
 
 interface OddsResponse {
   live: boolean;
@@ -315,17 +310,10 @@ function PicksTab() {
       </div>
 
       {dayMatches.length > 0 && (
-        <>
-          <div className="sv-date-heading">
-            <span>Thursday {day} June</span>
-            <strong>{filled} / {dayMatches.length}</strong>
-          </div>
-          <div className="sv-competition-heading">
-            <span className="sv-world-cup-mark">🏆</span>
-            <span>World Cup 26</span>
-            <small>{dayMatches.length} games</small>
-          </div>
-        </>
+        <div className="sv-date-heading">
+          <span>Thursday {day} June</span>
+          <strong>{filled} / {dayMatches.length}</strong>
+        </div>
       )}
 
       <div className={`sv-match-list no-scrollbar${showStats ? "" : " hide-stats"}`}>
@@ -370,38 +358,6 @@ function ResultsTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* GW nav — MPP style */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "10px 16px", background: M.bg, borderBottom: `1px solid ${M.border}`,
-      }}>
-        <button style={{
-          width: 36, height: 36, borderRadius: 10, border: "none",
-          background: M.mute, display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer",
-        }}><ChevronLeft size={16} color={M.text} /></button>
-
-        <div style={{
-          flex: 1, padding: "8px 12px", borderRadius: 10, background: M.mute,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: M.text }}>GW.1 / 9</p>
-            <p style={{ margin: 0, fontSize: 11, color: M.sub }}>GW.1</p>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22C55E" }} />
-            <span style={{ fontSize: 12, color: M.sub }}>Live</span>
-          </div>
-        </div>
-
-        <button style={{
-          width: 36, height: 36, borderRadius: 10, border: "none",
-          background: M.mute, display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer",
-        }}><ChevronRight size={16} color={M.text} /></button>
-      </div>
-
       <DayStrip selected={day} onSelect={setDay} />
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
@@ -515,22 +471,6 @@ function ResultsTab() {
 function RankingTab({ user }: { user: { name: string; avatar: string } }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: M.bg }}>
-      {/* GW nav */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "10px 16px", borderBottom: `1px solid ${M.border}`,
-      }}>
-        <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: M.mute, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <ChevronLeft size={16} color={M.text} />
-        </button>
-        <div style={{ flex: 1, textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: M.text }}>GameWeek 1 / 9</p>
-        </div>
-        <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: M.mute, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <ChevronRight size={16} color={M.text} />
-        </button>
-      </div>
-
       {/* Table header */}
       <div style={{
         display: "flex", alignItems: "center", padding: "10px 16px",
@@ -575,16 +515,6 @@ function RankingTab({ user }: { user: { name: string; avatar: string } }) {
           );
         })}
 
-        {/* Join the challenge button — MPP style */}
-        <div style={{ padding: "20px 16px" }}>
-          <button style={{
-            width: "100%", padding: "18px", borderRadius: 14, border: "none",
-            background: M.gold, color: "#000",
-            fontSize: 15, fontWeight: 700, cursor: "pointer",
-          }}>
-            Join the challenge
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -665,11 +595,6 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
         {sub === "ranking" ? (
           <>
-            {/* GW nav */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "12px 16px" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: M.text }}>GameWeek 1 / 9</span>
-            </div>
-
             {/* Table */}
             <div style={{ borderTop: `1px solid ${M.border}` }}>
               <div style={{ display: "flex", padding: "8px 16px", borderBottom: `1px solid ${M.border}` }}>
@@ -844,41 +769,19 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
   );
 }
 
-function ProfileTab({ user }: { user: { name: string; avatar: string } }) {
-  return (
-    <div className="sv-profile">
-      <div className="sv-profile-avatar">{user.avatar}</div>
-      <h2>{user.name}</h2>
-      <p>ScoreVault player</p>
-      <div className="sv-profile-card">
-        <span>Wallet</span>
-        <strong>Not connected</strong>
-        <button>Connect Smart Wallet</button>
-      </div>
-      <div className="sv-profile-stats">
-        <div><strong>0</strong><span>USDC locked</span></div>
-        <div><strong>0</strong><span>Leagues</span></div>
-        <div><strong>0</strong><span>Wins</span></div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
 const NAV: { id: Tab; label: string }[] = [
   { id: "picks",       label: "Predictions" },
   { id: "results",     label: "Results" },
   { id: "leaderboard", label: "Ranking" },
   { id: "league",      label: "My leagues" },
-  { id: "profile",     label: "Profile" },
 ];
 
 function NavIcon({ tab }: { tab: Tab }) {
   if (tab === "picks") return <span className="sv-score-icon">1:1</span>;
   if (tab === "results") return <span className="sv-ball-icon">⚽</span>;
   if (tab === "leaderboard") return <Trophy size={23} />;
-  if (tab === "league") return <Users size={24} />;
-  return <UserRound size={24} />;
+  return <Users size={24} />;
 }
 
 // ─── App root ─────────────────────────────────────────────────────────────────
@@ -911,7 +814,6 @@ export default function App() {
     results: "RESULTS",
     leaderboard: "STANDINGS",
     league: "MY LEAGUES & CHALLENGES",
-    profile: "PROFILE",
   };
 
   return (
@@ -925,10 +827,7 @@ export default function App() {
                 <span>BASE</span>
               </div>
               <h1>{TAB_TITLES[tab]}</h1>
-              <div className="sv-top-actions">
-                <button aria-label="Messages"><MessageSquare size={23} /></button>
-                <button aria-label="Notifications"><Bell size={23} /></button>
-              </div>
+              <div aria-hidden="true" />
             </header>
 
             <main className="sv-content">
@@ -936,7 +835,6 @@ export default function App() {
               {tab === "results"     && <ResultsTab />}
               {tab === "leaderboard" && <RankingTab user={user} />}
               {tab === "league"      && <LeagueTab user={user} />}
-              {tab === "profile"     && <ProfileTab user={user} />}
             </main>
 
             <nav className="sv-bottom-nav">
