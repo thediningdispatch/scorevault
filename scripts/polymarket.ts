@@ -8,47 +8,14 @@
  * Output: the winnerOddsBps values to pass to OracleAdapter.setResult()
  */
 
+import {
+  classifyMarket,
+  parseOutcomePrices,
+  teamsFromTitle,
+  type PolymarketEvent,
+} from "../app/lib/polymarket";
+
 const GAMMA_API = "https://gamma-api.polymarket.com";
-
-interface Market {
-  id: string;
-  question: string;
-  conditionId: string;
-  outcomePrices: string | string[]; // API returns a JSON-encoded string e.g. '["0.635","0.365"]'
-  outcomes: string | string[];
-  resolved: boolean | null;
-}
-
-interface PolymarketEvent {
-  slug: string;
-  title: string;
-  markets: Market[];
-}
-
-// outcomePrices comes back as a JSON-string-within-JSON from the API
-function parseOutcomePrices(raw: string | string[]): number[] {
-  const arr: string[] = typeof raw === "string" ? JSON.parse(raw) : raw;
-  return arr.map(Number);
-}
-
-// Extract team names from title "Germany vs. Côte d'Ivoire" → ["Germany", "Côte d'Ivoire"]
-function teamsFromTitle(title: string): [string, string] {
-  const parts = title.split(/\s+vs\.?\s+/i);
-  return [parts[0].trim(), parts[1]?.trim() ?? ""];
-}
-
-// Classify a market question as home win / away win / draw
-function classifyMarket(
-  question: string,
-  homeTeam: string,
-  awayTeam: string
-): "home" | "away" | "draw" | null {
-  const q = question.toLowerCase();
-  if (q.includes("draw")) return "draw";
-  if (q.includes(homeTeam.toLowerCase())) return "home";
-  if (q.includes(awayTeam.toLowerCase())) return "away";
-  return null;
-}
 
 async function fetchMatchOdds(slug: string) {
   const url = `${GAMMA_API}/events/slug/${slug}`;

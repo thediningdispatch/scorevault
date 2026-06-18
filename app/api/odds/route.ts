@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  oddsFromEvent,
+  type PolymarketEvent,
+} from "@/app/lib/polymarket";
 
 const GAMMA = "https://gamma-api.polymarket.com";
 
@@ -17,19 +21,6 @@ const SLUGS: Record<string, string> = {
   "esp-mar": "fifwc-esp-mar-2026-06-21",
 };
 
-function parseOutcomePrices(raw: string | string[]): number[] {
-  const arr: string[] = typeof raw === "string" ? JSON.parse(raw) : raw;
-  return arr.map(Number);
-}
-
-function classifyMarket(question: string, home: string, away: string) {
-  const q = question.toLowerCase();
-  if (q.includes("draw")) return "draw";
-  if (q.includes(home.toLowerCase())) return "home";
-  if (q.includes(away.toLowerCase())) return "away";
-  return null;
-}
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const matchId = searchParams.get("match") ?? "";
@@ -39,25 +30,15 @@ export async function GET(req: Request) {
 
   try {
     const res = await fetch(`${GAMMA}/events/slug/${slug}`, {
-      next: { revalidate: 300 }, // re-fetch every 5 min
+      next: { revalidate: 30 },
     });
 
     if (!res.ok) return NextResponse.json({ live: false });
 
-    const event = await res.json();
+    const event = (await res.json()) as PolymarketEvent;
     if (!event?.markets?.length) return NextResponse.json({ live: false });
 
-    const [homeTeam, awayTeam] = (event.title as string)
-      .split(/\s+vs\.?\s+/i)
-      .map((s: string) => s.trim());
-
-    const odds: Record<"home" | "draw" | "away", number | null> = { home: null, draw: null, away: null };
-
-    for (const m of event.markets) {
-      const prices = parseOutcomePrices(m.outcomePrices);
-      const type = classifyMarket(m.question, homeTeam, awayTeam);
-      if (type) odds[type] = prices[0]; // prices[0] = "Yes" probability
-    }
+    const odds = oddsFromEvent(event);
 
     // Convert to integer percentages
     return NextResponse.json({

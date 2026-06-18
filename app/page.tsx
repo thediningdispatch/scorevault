@@ -1,6 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Bell,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  Trophy,
+  UserRound,
+  Users,
+} from "lucide-react";
 
 // ─── MPP exact palette ────────────────────────────────────────────────────────
 const M = {
@@ -24,7 +34,15 @@ function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pc
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ScoreVal = number | "";
-type Tab = "picks" | "results" | "leaderboard" | "league";
+type Tab = "picks" | "results" | "leaderboard" | "league" | "profile";
+
+interface OddsResponse {
+  live: boolean;
+  home?: number | null;
+  draw?: number | null;
+  away?: number | null;
+  source?: "polymarket";
+}
 
 interface Match {
   id: string; day: number; time: string; gw: string;
@@ -38,6 +56,21 @@ interface PastMatch {
   draw: { pct: number };
   away: { name: string; flag: string; score: number; pct: number };
   myPick: { home: number; away: number } | null;
+}
+
+function useMatchOdds(matchId: string) {
+  return useQuery({
+    queryKey: ["match-odds", matchId],
+    queryFn: async () => {
+      const response = await fetch(`/api/odds?match=${encodeURIComponent(matchId)}`);
+      if (!response.ok) return { live: false } satisfies OddsResponse;
+      return response.json() as Promise<OddsResponse>;
+    },
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -96,15 +129,6 @@ const DAYS = [
   { short: "Wed", num: "23", day: 23 },
 ];
 
-const DAY_LABELS: Record<number, string> = {
-  17: "Wednesday 17 June",
-  18: "Thursday 18 June",
-  19: "Friday 19 June",
-  20: "Saturday 20 June",
-  21: "Sunday 21 June",
-  22: "Monday 22 June",
-};
-
 const MOCK_BOARD = [
   { name: "Vianney",   avatar: "🦁", pts: 480, good: 3, exact: 2 },
   { name: "Jules",     avatar: "🐯", pts: 280, good: 2, exact: 1 },
@@ -117,13 +141,7 @@ const LEAGUE_CODE = "SV-2026";
 // ─── Circular flag ─────────────────────────────────────────────────────────────
 function CircleFlag({ flag, size = 76 }: { flag: string; size?: number }) {
   return (
-    <div style={{
-      width: size, height: size, borderRadius: "50%",
-      background: "#2C2C2E",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      overflow: "hidden", flexShrink: 0,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-    }}>
+    <div className="sv-flag" style={{ width: size, height: size }}>
       <span style={{ fontSize: size * 0.72, lineHeight: 1, display: "block" }}>{flag}</span>
     </div>
   );
@@ -134,6 +152,8 @@ function ScoreInput({ value, onChange }: { value: ScoreVal; onChange: (v: ScoreV
   const filled = value !== "";
   return (
     <input
+      aria-label="Predicted score"
+      className={`sv-score-input${filled ? " is-filled" : ""}`}
       type="text" inputMode="numeric" pattern="[0-9]*"
       value={value === "" ? "" : String(value)}
       onChange={e => {
@@ -141,14 +161,6 @@ function ScoreInput({ value, onChange }: { value: ScoreVal; onChange: (v: ScoreV
         onChange(v === "" ? "" : Math.min(20, parseInt(v) || 0));
       }}
       placeholder="–"
-      style={{
-        width: 52, height: 52, borderRadius: 10,
-        background: filled ? "#3D3420" : M.mute,
-        border: `2px solid ${filled ? M.gold : "transparent"}`,
-        color: filled ? M.gold : M.sub,
-        fontSize: 22, fontWeight: 900, textAlign: "center",
-        outline: "none", transition: "all 0.15s",
-      }}
     />
   );
 }
@@ -160,115 +172,77 @@ function MatchCard({ match, picks, onPick }: {
   onPick: (h: ScoreVal, a: ScoreVal) => void;
 }) {
   const h = picks.home; const a = picks.away;
-  const ptsH = pts(match.home.pct);
-  const ptsD = pts(match.draw.pct);
-  const ptsA = pts(match.away.pct);
-
-  // Which outcome the user is currently predicting
-  let activePts: number | null = null;
-  if (h !== "" && a !== "") {
-    const hn = Number(h); const an = Number(a);
-    activePts = hn > an ? ptsH : an > hn ? ptsA : ptsD;
-  }
+  const oddsQuery = useMatchOdds(match.id);
+  const liveOdds = oddsQuery.data?.live ? oddsQuery.data : null;
+  const homePct = liveOdds?.home ?? match.home.pct;
+  const drawPct = liveOdds?.draw ?? match.draw.pct;
+  const awayPct = liveOdds?.away ?? match.away.pct;
+  const ptsH = pts(homePct);
+  const ptsD = pts(drawPct);
+  const ptsA = pts(awayPct);
 
   return (
-    <div style={{ background: M.card, borderBottom: `1px solid ${M.border}` }}>
-      {/* Match sub-header */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "8px 16px 4px",
-      }}>
-        <span style={{ fontSize: 11 }}>🏆</span>
-        <span style={{ fontSize: 11, color: M.sub, fontWeight: 500 }}>
-          {match.gw} · {match.time}
+    <article className="sv-match-card">
+      <div className="sv-match-meta">
+        <span className="sv-competition-dot">🏆</span>
+        <span>{match.gw}</span>
+        <span className="sv-meta-separator">·</span>
+        <span>{match.time}</span>
+        <span className={`sv-market-status${liveOdds ? " is-live" : ""}`}>
+          <i />
+          {liveOdds ? "Polymarket live" : oddsQuery.isFetching ? "Updating odds" : "Market estimate"}
         </span>
       </div>
 
-      {/* Teams row */}
-      <div style={{ display: "flex", alignItems: "center", padding: "10px 12px 16px", gap: 8 }}>
-        {/* Home */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <div className="sv-match-main">
+        <div className="sv-team">
           <CircleFlag flag={match.home.flag} size={76} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: M.text, textAlign: "center", lineHeight: 1.2 }}>
-            {match.home.name}
-          </span>
+          <span className="sv-team-name">{match.home.name}</span>
         </div>
 
-        {/* Center: inputs + stats */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <div style={{ display: "flex", gap: 6 }}>
+        <div className="sv-pick-center">
+          <div className="sv-score-fields">
             <ScoreInput value={h} onChange={v => onPick(v, a)} />
             <ScoreInput value={a} onChange={v => onPick(h, v)} />
           </div>
 
-          {/* Points pills: H / D / A */}
-          <div style={{ display: "flex", gap: 4 }}>
+          <div className="sv-odds-grid">
             {[
-              { val: ptsH, active: h !== "" && a !== "" && Number(h) > Number(a) },
-              { val: ptsD, active: h !== "" && a !== "" && Number(h) === Number(a) },
-              { val: ptsA, active: h !== "" && a !== "" && Number(h) < Number(a) },
-            ].map(({ val, active }, i) => (
-              <div key={i} style={{
-                padding: "3px 9px", borderRadius: 6,
-                background: active ? M.goldBg : M.pill,
-                border: `1px solid ${active ? M.gold : "transparent"}`,
-                minWidth: 36, textAlign: "center",
-              }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: active ? M.gold : M.sub }}>
-                  {val}
-                </span>
+              { label: "1", val: ptsH, pct: homePct, active: h !== "" && a !== "" && Number(h) > Number(a) },
+              { label: "X", val: ptsD, pct: drawPct, active: h !== "" && a !== "" && Number(h) === Number(a) },
+              { label: "2", val: ptsA, pct: awayPct, active: h !== "" && a !== "" && Number(h) < Number(a) },
+            ].map(({ label, val, pct, active }) => (
+              <div key={label} className={`sv-odd${active ? " is-active" : ""}`}>
+                <span className="sv-odd-value">{val}</span>
+                <span className="sv-odd-pct">{pct}%</span>
               </div>
             ))}
           </div>
-
-          {/* Percentages */}
-          <div style={{ display: "flex", gap: 10 }}>
-            {[match.home.pct, match.draw.pct, match.away.pct].map((p, i) => (
-              <span key={i} style={{ fontSize: 10, color: M.sub, minWidth: 28, textAlign: "center" }}>
-                {p}%
-              </span>
-            ))}
-          </div>
         </div>
 
-        {/* Away */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <div className="sv-team">
           <CircleFlag flag={match.away.flag} size={76} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: M.text, textAlign: "center", lineHeight: 1.2 }}>
-            {match.away.name}
-          </span>
+          <span className="sv-team-name">{match.away.name}</span>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
 // ─── Day strip ────────────────────────────────────────────────────────────────
 function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: number) => void }) {
   return (
-    <div className="no-scrollbar" style={{
-      display: "flex", overflowX: "auto", background: M.bg,
-      borderBottom: `1px solid ${M.border}`,
-    }}>
+    <div className="sv-day-strip no-scrollbar">
       {DAYS.map(({ short, num, day, today }) => {
         const active = day === selected;
         return (
-          <button key={day} onClick={() => onSelect(day)} style={{
-            flexShrink: 0, display: "flex", flexDirection: "column",
-            alignItems: "center", padding: "10px 14px", gap: 2,
-            background: active ? M.gold : "transparent",
-            border: "none", cursor: "pointer", transition: "background 0.15s",
-          }}>
-            <span style={{
-              fontSize: 10, fontWeight: 600, textTransform: "uppercase",
-              color: active ? "#000" : M.sub, letterSpacing: "0.03em",
-            }}>
-              {today && !active ? "Today" : short}
-            </span>
-            <span style={{
-              fontSize: 18, fontWeight: 900, lineHeight: 1,
-              color: active ? "#000" : today ? M.gold : M.text,
-            }}>{num}</span>
+          <button
+            className={`sv-day${active ? " is-active" : ""}`}
+            key={day}
+            onClick={() => onSelect(day)}
+          >
+            <span>{today ? "Tod." : short}</span>
+            <strong>{num}</strong>
           </button>
         );
       })}
@@ -291,24 +265,19 @@ function Countdown() {
   const m = Math.floor((s % 3600) / 60);
   const sc = s % 60;
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 6,
-      padding: "4px 12px", borderRadius: 20,
-      background: M.mute,
-    }}>
-      <span style={{ fontSize: 12 }}>🕐</span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: M.text, fontVariantNumeric: "tabular-nums" }}>
-        {pad(h)} : {pad(m)} : {pad(sc)}
-      </span>
+    <div className="sv-countdown">
+      <span className="sv-clock">◷</span>
+      <span>{pad(h)} : {pad(m)} : {pad(sc)}</span>
     </div>
   );
 }
 
 // ─── Picks tab ────────────────────────────────────────────────────────────────
-function PicksTab({ user }: { user: { name: string; avatar: string } }) {
+function PicksTab() {
   const [day, setDay] = useState(18);
   const [picks, setPicks] = useState<Record<string, { home: ScoreVal; away: ScoreVal }>>({});
   const [saved, setSaved] = useState(false);
+  const [showStats, setShowStats] = useState(true);
 
   const dayMatches = MATCHES.filter(m => m.day === day);
   const filled = dayMatches.filter(m => {
@@ -326,42 +295,43 @@ function PicksTab({ user }: { user: { name: string; avatar: string } }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="sv-picks-screen">
       <DayStrip selected={day} onSelect={setDay} />
 
-      {/* Countdown + status bar */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 16px", background: M.bg, borderBottom: `1px solid ${M.border}`,
-      }}>
+      <div className="sv-picks-tools">
         <Countdown />
-        <span style={{ fontSize: 12, color: M.sub, fontWeight: 600 }}>
-          {filled} / {dayMatches.length} filled
-        </span>
+        <label className="sv-toggle-label">
+          Show stats
+          <button
+            aria-label="Toggle prediction statistics"
+            aria-pressed={showStats}
+            className={`sv-toggle${showStats ? " is-on" : ""}`}
+            onClick={() => setShowStats(value => !value)}
+          >
+            <span><Check size={14} /></span>
+          </button>
+        </label>
       </div>
 
-      {/* Section header */}
       {dayMatches.length > 0 && (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 16px 8px", background: M.bg,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>🏆</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: M.text }}>World Cup 2026</span>
+        <>
+          <div className="sv-date-heading">
+            <span>Thursday {day} June</span>
+            <strong>{filled} / {dayMatches.length}</strong>
           </div>
-          <span style={{ fontSize: 12, color: M.sub }}>{dayMatches.length} games</span>
-        </div>
+          <div className="sv-competition-heading">
+            <span className="sv-world-cup-mark">🏆</span>
+            <span>World Cup 26</span>
+            <small>{dayMatches.length} games</small>
+          </div>
+        </>
       )}
 
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
+      <div className={`sv-match-list no-scrollbar${showStats ? "" : " hide-stats"}`}>
         {dayMatches.length === 0 ? (
-          <div style={{
-            display: "flex", flexDirection: "column", alignItems: "center",
-            justifyContent: "center", height: 200, gap: 12,
-          }}>
+          <div className="sv-empty-state">
             <span style={{ fontSize: 48 }}>⚽</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: M.sub }}>No games today</span>
+            <strong>No games today</strong>
           </div>
         ) : (
           dayMatches.map(m => (
@@ -370,24 +340,15 @@ function PicksTab({ user }: { user: { name: string; avatar: string } }) {
               onPick={(h, a) => setPick(m.id, h, a)} />
           ))
         )}
-        <div style={{ height: 80 }} />
+        <div className="sv-list-spacer" />
       </div>
 
-      {/* Lock button */}
-      <div style={{
-        position: "absolute", bottom: 64, left: 0, right: 0,
-        padding: "12px 16px",
-        background: `linear-gradient(to top, ${M.bg} 70%, transparent)`,
-      }}>
-        <button onClick={save} disabled={filled === 0} style={{
-          width: "100%", padding: "16px", borderRadius: 14, border: "none",
-          background: saved ? M.green : filled > 0 ? M.gold : M.mute,
-          color: filled > 0 ? "#000" : M.sub,
-          fontSize: 15, fontWeight: 800, cursor: filled > 0 ? "pointer" : "default",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          transition: "all 0.2s",
-          boxShadow: filled > 0 ? `0 4px 24px ${M.gold}60` : "none",
-        }}>
+      <div className="sv-lock-dock">
+        <button
+          className={`sv-lock-button${saved ? " is-saved" : ""}`}
+          onClick={save}
+          disabled={filled === 0}
+        >
           {saved
             ? <><Check size={16} /> Predictions locked!</>
             : filled === dayMatches.length && dayMatches.length > 0
@@ -890,13 +851,42 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
   );
 }
 
+function ProfileTab({ user }: { user: { name: string; avatar: string } }) {
+  return (
+    <div className="sv-profile">
+      <div className="sv-profile-avatar">{user.avatar}</div>
+      <h2>{user.name}</h2>
+      <p>ScoreVault player</p>
+      <div className="sv-profile-card">
+        <span>Wallet</span>
+        <strong>Not connected</strong>
+        <button>Connect Smart Wallet</button>
+      </div>
+      <div className="sv-profile-stats">
+        <div><strong>0</strong><span>USDC locked</span></div>
+        <div><strong>0</strong><span>Leagues</span></div>
+        <div><strong>0</strong><span>Wins</span></div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
-const NAV: { id: Tab; label: string; icon: string }[] = [
-  { id: "picks",       label: "Predictions", icon: "1:1" },
-  { id: "results",     label: "Results",     icon: "⚽" },
-  { id: "leaderboard", label: "Ranking",     icon: "🏆" },
-  { id: "league",      label: "My leagues",  icon: "👥" },
+const NAV: { id: Tab; label: string }[] = [
+  { id: "picks",       label: "Predictions" },
+  { id: "results",     label: "Results" },
+  { id: "leaderboard", label: "Ranking" },
+  { id: "league",      label: "My leagues" },
+  { id: "profile",     label: "Profile" },
 ];
+
+function NavIcon({ tab }: { tab: Tab }) {
+  if (tab === "picks") return <span className="sv-score-icon">1:1</span>;
+  if (tab === "results") return <span className="sv-ball-icon">⚽</span>;
+  if (tab === "leaderboard") return <Trophy size={23} />;
+  if (tab === "league") return <Users size={24} />;
+  return <UserRound size={24} />;
+}
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -905,11 +895,14 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      const s = localStorage.getItem("sv_user");
-      if (s) setUser(JSON.parse(s));
-    } catch {}
-    setReady(true);
+    const frame = requestAnimationFrame(() => {
+      try {
+        const savedUser = localStorage.getItem("sv_user");
+        if (savedUser) setUser(JSON.parse(savedUser));
+      } catch {}
+      setReady(true);
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   function onboard(name: string, avatar: string) {
@@ -924,78 +917,50 @@ export default function App() {
     picks: "MY PREDICTIONS",
     results: "RESULTS",
     leaderboard: "STANDINGS",
-    league: "MY LEAGUES",
+    league: "MY LEAGUES & CHALLENGES",
+    profile: "PROFILE",
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#000" }}>
-      <div style={{
-        position: "relative", display: "flex", flexDirection: "column",
-        width: "min(100vw, 430px)", height: "min(100dvh, 932px)",
-        background: M.bg, overflow: "hidden",
-      }}>
+    <div className="sv-viewport">
+      <div className="sv-app-shell">
         {!user ? <Onboarding onDone={onboard} /> : (
           <>
-            {/* Top bar — MPP style */}
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "12px 16px", background: M.bg,
-              borderBottom: `1px solid ${M.border}`,
-            }}>
-              <div style={{ width: 40 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: M.gold, display: "flex", alignItems: "center",
-                  justifyContent: "center", fontSize: 18,
-                }}>⚽</div>
+            <header className="sv-topbar">
+              <div className="sv-brand-switcher">
+                <div className="sv-brand-coin">SV</div>
+                <span>BASE</span>
               </div>
-              <span style={{
-                fontSize: 15, fontWeight: 900, color: M.text,
-                letterSpacing: "0.08em", textTransform: "uppercase",
-              }}>{TAB_TITLES[tab]}</span>
-              <div style={{ width: 40, display: "flex", justifyContent: "flex-end" }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%",
-                  background: M.mute, display: "flex", alignItems: "center",
-                  justifyContent: "center", fontSize: 20,
-                }}>{user.avatar}</div>
+              <h1>{TAB_TITLES[tab]}</h1>
+              <div className="sv-top-actions">
+                <button aria-label="Messages"><MessageSquare size={23} /></button>
+                <button aria-label="Notifications"><Bell size={23} /></button>
               </div>
-            </div>
+            </header>
 
-            {/* Content */}
-            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
-              {tab === "picks"       && <PicksTab user={user} />}
+            <main className="sv-content">
+              {tab === "picks"       && <PicksTab />}
               {tab === "results"     && <ResultsTab />}
               {tab === "leaderboard" && <RankingTab user={user} />}
               {tab === "league"      && <LeagueTab user={user} />}
-            </div>
+              {tab === "profile"     && <ProfileTab user={user} />}
+            </main>
 
-            {/* Bottom nav — MPP gold bar */}
-            <div style={{
-              display: "flex", background: M.nav,
-              paddingBottom: "env(safe-area-inset-bottom)",
-            }}>
+            <nav className="sv-bottom-nav">
               {NAV.map(item => {
                 const active = item.id === tab;
                 return (
-                  <button key={item.id} onClick={() => setTab(item.id)} style={{
-                    flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-                    padding: "10px 0 8px", border: "none",
-                    background: active ? "rgba(0,0,0,0.2)" : "transparent",
-                    cursor: "pointer", gap: 3,
-                  }}>
-                    <span style={{ fontSize: item.icon === "1:1" ? 11 : 20, fontWeight: item.icon === "1:1" ? 900 : 400, color: "#FFF", lineHeight: 1 }}>
-                      {item.icon}
-                    </span>
-                    <span style={{
-                      fontSize: 9, fontWeight: active ? 700 : 500,
-                      color: active ? "#FFF" : "rgba(255,255,255,0.65)",
-                      textTransform: "capitalize", letterSpacing: "0.01em",
-                    }}>{item.label}</span>
+                  <button
+                    className={active ? "is-active" : ""}
+                    key={item.id}
+                    onClick={() => setTab(item.id)}
+                  >
+                    <NavIcon tab={item.id} />
+                    <span>{item.label}</span>
                   </button>
                 );
               })}
-            </div>
+            </nav>
           </>
         )}
       </div>
