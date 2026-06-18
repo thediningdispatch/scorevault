@@ -9,21 +9,21 @@ import { ensureSession, upsertProfile, savePicks, getUserPicks, getLeaderboard }
 import type { LeaderboardEntry, Pick as DBPick } from "./lib/supabase";
 import type { Match, ScoreVal } from "./lib/match-types";
 
-// ─── MPP exact palette ────────────────────────────────────────────────────────
+// ─── Polymarket light palette ─────────────────────────────────────────────────
 const M = {
-  bg:     "#111111",
-  card:   "#1C1C1E",
-  border: "#2C2C2E",
-  gold:   "#C8A84B",
-  goldBg: "#2A2214",
-  nav:    "#B08A28",
-  text:   "#FFFFFF",
-  sub:    "#8E8E93",
-  mute:   "#3A3A3C",
-  pill:   "#2E2E30",
-  green:  "#32D74B",
-  red:    "#FF453A",
-  pink:   "#FF375F",
+  bg:     "#f5f6fb",
+  card:   "#ffffff",
+  border: "#e4e6ef",
+  gold:   "#3157f6",
+  goldBg: "#eef0ff",
+  nav:    "#1637d5",
+  text:   "#171927",
+  sub:    "#777b8e",
+  mute:   "#f4f5f9",
+  pill:   "#eef0ff",
+  green:  "#15a957",
+  red:    "#df5353",
+  pink:   "#df5353",
 };
 
 // ─── Points formula (same as before, hidden from user) ────────────────────────
@@ -357,7 +357,7 @@ function ResultsTab() {
                   {/* Final score */}
                   <div style={{
                     padding: "8px 20px", borderRadius: 10,
-                    background: M.mute, border: `2px solid ${exact ? M.gold : correct ? "#22C55E" : M.border}`,
+                    background: M.mute, border: `2px solid ${exact ? M.gold : correct ? M.green : M.border}`,
                   }}>
                     <span style={{ fontSize: 22, fontWeight: 900, color: M.text, fontVariantNumeric: "tabular-nums" }}>
                       {m.home.score} : {m.away.score}
@@ -374,10 +374,10 @@ function ResultsTab() {
                     {earnedPts > 0 && (
                       <div style={{
                         padding: "3px 10px", borderRadius: 8,
-                        background: exact ? M.gold : "#22C55E22",
-                        border: `1px solid ${exact ? M.gold : "#22C55E"}`,
+                        background: exact ? M.gold : "rgba(21,169,87,0.12)",
+                        border: `1px solid ${exact ? M.gold : M.green}`,
                       }}>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: exact ? "#000" : "#22C55E" }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: exact ? "#fff" : M.green }}>
                           +{earnedPts} pts {exact ? "🎯" : "✓"}
                         </span>
                       </div>
@@ -451,7 +451,7 @@ function RankingTab({ user }: { user: { name: string; avatar: string } }) {
             <div key={p.user_id} style={{
               display: "flex", alignItems: "center", padding: "14px 16px",
               borderBottom: `1px solid ${M.border}`,
-              background: isMe ? "#1E1A10" : "transparent",
+              background: isMe ? M.goldBg : "transparent",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
                 <span style={{ fontSize: 14, fontWeight: 800, width: 20, color: i === 0 ? M.gold : M.sub }}>
@@ -519,7 +519,7 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* League hero — MPP style blurred image header */}
       <div style={{
-        background: `linear-gradient(to bottom, #2A1F0A, ${M.bg})`,
+        background: `linear-gradient(to bottom, rgba(49,87,246,0.06), ${M.bg})`,
         padding: "20px 16px 0",
         display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
       }}>
@@ -546,7 +546,7 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
             <button key={t} onClick={() => setSub(t)} style={{
               flex: 1, padding: "12px 0",
               background: sub === t ? M.gold : "transparent",
-              border: "none", color: sub === t ? "#000" : M.sub,
+              border: "none", color: sub === t ? "#fff" : M.sub,
               fontSize: 13, fontWeight: 700, cursor: "pointer",
               textTransform: "capitalize", transition: "all 0.15s",
             }}>
@@ -573,7 +573,7 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
                   <div key={p.user_id} style={{
                     display: "flex", alignItems: "center", padding: "14px 16px",
                     borderBottom: `1px solid ${M.border}`,
-                    background: isMe ? "#1E1A10" : "transparent",
+                    background: isMe ? M.goldBg : "transparent",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
                       <span style={{ fontSize: 13, fontWeight: 800, width: 18, color: i === 0 ? M.gold : M.sub }}>{i + 1}</span>
@@ -706,7 +706,7 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
           <button onClick={() => valid && setStep(2)} disabled={!valid} style={{
             width: "100%", padding: "17px", borderRadius: 14, border: "none",
             background: valid ? M.gold : M.mute,
-            color: valid ? "#000" : M.sub, fontSize: 15, fontWeight: 800,
+            color: valid ? "#fff" : M.sub, fontSize: 15, fontWeight: 800,
             cursor: valid ? "pointer" : "default",
             boxShadow: valid ? `0 4px 20px ${M.gold}50` : "none",
           }}>Continue →</button>
@@ -724,7 +724,7 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
           </div>
           <button onClick={() => onDone(name.trim(), avatar)} style={{
             width: "100%", padding: "17px", borderRadius: 14, border: "none",
-            background: M.gold, color: "#000", fontSize: 15, fontWeight: 800,
+            background: M.gold, color: "#fff", fontSize: 15, fontWeight: 800,
             cursor: "pointer", boxShadow: `0 4px 20px ${M.gold}50`,
           }}>Let&apos;s play! 🚀</button>
         </>
@@ -775,8 +775,8 @@ export default function App() {
 
   return (
     !user ? (
-      <div className="fixed inset-0 grid place-items-center bg-[#080a0f]">
-        <div className="h-[min(100dvh,932px)] w-[min(100vw,430px)] overflow-hidden bg-[#0d0f15]">
+      <div className="fixed inset-0 grid place-items-center bg-[#e9ecf8]">
+        <div className="h-[min(100dvh,932px)] w-[min(100vw,430px)] overflow-hidden bg-[#f5f6fb]">
           <Onboarding onDone={onboard} />
         </div>
       </div>
