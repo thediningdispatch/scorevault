@@ -6,6 +6,8 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
+import { ensureSession, upsertProfile, savePicks, getUserPicks, getLeaderboard } from "./lib/supabase";
+import type { LeaderboardEntry, Pick as DBPick } from "./lib/supabase";
 
 // ─── MPP exact palette ────────────────────────────────────────────────────────
 const M = {
@@ -269,11 +271,20 @@ function Countdown() {
 }
 
 // ─── Picks tab ────────────────────────────────────────────────────────────────
-function PicksTab() {
-  const [day, setDay] = useState(18);
+function PicksTab({ userId }: { userId: string | null }) {
+  const [day, setDay] = useState(19);
   const [picks, setPicks] = useState<Record<string, { home: ScoreVal; away: ScoreVal }>>({});
   const [saved, setSaved] = useState(false);
   const [showStats, setShowStats] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    getUserPicks(userId).then((dbPicks: DBPick[]) => {
+      const map: Record<string, { home: ScoreVal; away: ScoreVal }> = {};
+      for (const p of dbPicks) map[p.match_id] = { home: p.home_score, away: p.away_score };
+      setPicks(prev => ({ ...map, ...prev }));
+    });
+  }, [userId]);
 
   const dayMatches = MATCHES.filter(m => m.day === day);
   const filled = dayMatches.filter(m => {
@@ -285,8 +296,14 @@ function PicksTab() {
     setPicks(prev => ({ ...prev, [id]: { home: h, away: a } }));
   }
 
-  function save() {
+  async function save() {
     setSaved(true);
+    if (userId) {
+      const rows = dayMatches
+        .filter(m => picks[m.id]?.home !== "" && picks[m.id]?.away !== "")
+        .map(m => ({ matchId: m.id, homeScore: Number(picks[m.id].home), awayScore: Number(picks[m.id].away) }));
+      await savePicks(userId, rows);
+    }
     setTimeout(() => setSaved(false), 2000);
   }
 
@@ -469,6 +486,9 @@ function ResultsTab() {
 
 // ─── Ranking tab ──────────────────────────────────────────────────────────────
 function RankingTab({ user }: { user: { name: string; avatar: string } }) {
+  const [board, setBoard] = useState<LeaderboardEntry[]>([]);
+  useEffect(() => { getLeaderboard().then(setBoard); }, []);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: M.bg }}>
       {/* Table header */}
@@ -483,10 +503,15 @@ function RankingTab({ user }: { user: { name: string; avatar: string } }) {
       </div>
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
-        {MOCK_BOARD.map((p, i) => {
+        {board.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 8 }}>
+            <span style={{ fontSize: 32 }}>🏆</span>
+            <span style={{ fontSize: 13, color: M.sub }}>No picks submitted yet</span>
+          </div>
+        ) : board.map((p, i) => {
           const isMe = p.name === user.name;
           return (
-            <div key={p.name} style={{
+            <div key={p.user_id} style={{
               display: "flex", alignItems: "center", padding: "14px 16px",
               borderBottom: `1px solid ${M.border}`,
               background: isMe ? "#1E1A10" : "transparent",
@@ -508,9 +533,9 @@ function RankingTab({ user }: { user: { name: string; avatar: string } }) {
                   </p>
                 </div>
               </div>
-              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good}</span>
-              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact}</span>
-              <span style={{ width: 60, textAlign: "right", fontSize: 18, fontWeight: 900, color: M.gold }}>{p.pts}</span>
+              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good_picks}</span>
+              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact_picks}</span>
+              <span style={{ width: 60, textAlign: "right", fontSize: 18, fontWeight: 900, color: M.gold }}>{p.total_pts}</span>
             </div>
           );
         })}
@@ -526,6 +551,8 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
   const [copied, setCopied] = useState(false);
   const [email, setEmail] = useState("");
   const [waitlist, setWaitlist] = useState<"idle" | "loading" | "done">("idle");
+  const [board, setBoard] = useState<LeaderboardEntry[]>([]);
+  useEffect(() => { getLeaderboard().then(setBoard); }, []);
 
   async function submitEmail() {
     if (!email.includes("@")) return;
@@ -573,7 +600,7 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
           borderRadius: 20, background: M.mute,
         }}>
           <span style={{ fontSize: 13 }}>👥</span>
-          <span style={{ fontSize: 12, color: M.text, fontWeight: 600 }}>{MOCK_BOARD.length}</span>
+          <span style={{ fontSize: 12, color: M.text, fontWeight: 600 }}>{board.length}</span>
         </div>
 
         {/* Sub-tabs */}
@@ -603,10 +630,10 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
                 <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Exacts</span>
                 <span style={{ width: 56, textAlign: "right", fontSize: 11, color: M.gold, textTransform: "uppercase" }}>Points</span>
               </div>
-              {MOCK_BOARD.map((p, i) => {
+              {board.map((p, i) => {
                 const isMe = p.name === user.name;
                 return (
-                  <div key={p.name} style={{
+                  <div key={p.user_id} style={{
                     display: "flex", alignItems: "center", padding: "14px 16px",
                     borderBottom: `1px solid ${M.border}`,
                     background: isMe ? "#1E1A10" : "transparent",
@@ -622,9 +649,9 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
                         {p.name}{isMe && <span style={{ color: M.gold, fontSize: 11, marginLeft: 6 }}>· you</span>}
                       </span>
                     </div>
-                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good}</span>
-                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact}</span>
-                    <span style={{ width: 56, textAlign: "right", fontSize: 17, fontWeight: 900, color: M.gold }}>{p.pts}</span>
+                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good_picks}</span>
+                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact_picks}</span>
+                    <span style={{ width: 56, textAlign: "right", fontSize: 17, fontWeight: 900, color: M.gold }}>{p.total_pts}</span>
                   </div>
                 );
               })}
@@ -787,24 +814,28 @@ function NavIcon({ tab }: { tab: Tab }) {
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [tab, setTab]   = useState<Tab>("picks");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
+    (async () => {
       try {
         const savedUser = localStorage.getItem("sv_user");
         if (savedUser) setUser(JSON.parse(savedUser));
       } catch {}
+      const uid = await ensureSession();
+      setUserId(uid);
       setReady(true);
-    });
-    return () => cancelAnimationFrame(frame);
+    })();
   }, []);
 
-  function onboard(name: string, avatar: string) {
+  async function onboard(name: string, avatar: string) {
     const u = { name, avatar };
     localStorage.setItem("sv_user", JSON.stringify(u));
     setUser(u);
+    const uid = userId ?? (await ensureSession());
+    if (uid) { setUserId(uid); await upsertProfile(uid, name, avatar); }
   }
 
   if (!ready) return null;
@@ -831,7 +862,7 @@ export default function App() {
             </header>
 
             <main className="sv-content">
-              {tab === "picks"       && <PicksTab />}
+              {tab === "picks"       && <PicksTab userId={userId} />}
               {tab === "results"     && <ResultsTab />}
               {tab === "leaderboard" && <RankingTab user={user} />}
               {tab === "league"      && <LeagueTab user={user} />}
