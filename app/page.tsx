@@ -77,13 +77,13 @@ const MATCHES: Match[] = [
 const PAST: PastMatch[] = [
   { id: "mex-rsa", day: 17, date: "Jun 17", gw: "GW.1",
     home: { name: "Mexico",      flag: "🇲🇽", score: 2, pct: 58 }, draw: { pct: 24 },
-    away: { name: "South Africa",flag: "🇿🇦", score: 0, pct: 18 }, myPick: { home: 2, away: 0 } },
+    away: { name: "South Africa",flag: "🇿🇦", score: 0, pct: 18 }, myPick: null },
   { id: "kor-cze", day: 17, date: "Jun 17", gw: "GW.1",
     home: { name: "South Korea", flag: "🇰🇷", score: 2, pct: 44 }, draw: { pct: 28 },
-    away: { name: "Czechia",     flag: "🇨🇿", score: 1, pct: 28 }, myPick: { home: 2, away: 1 } },
+    away: { name: "Czechia",     flag: "🇨🇿", score: 1, pct: 28 }, myPick: null },
   { id: "can-bih", day: 17, date: "Jun 17", gw: "GW.1",
     home: { name: "Canada",      flag: "🇨🇦", score: 1, pct: 52 }, draw: { pct: 26 },
-    away: { name: "Bosnia",      flag: "🇧🇦", score: 1, pct: 22 }, myPick: { home: 1, away: 0 } },
+    away: { name: "Bosnia",      flag: "🇧🇦", score: 1, pct: 22 }, myPick: null },
 ];
 
 const DAYS = [
