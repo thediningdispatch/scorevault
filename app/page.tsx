@@ -656,16 +656,82 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   );
 }
 
+// ── PromoPopup ────────────────────────────────────────────────────────────────
+function PromoPopup({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div
+      onClick={onDismiss}
+      style={{ position: "fixed", inset: 0, zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "rgba(15,18,45,0.62)", backdropFilter: "blur(4px)" }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ position: "relative", width: "100%", maxWidth: 340, borderRadius: 22, background: P.white, boxShadow: "0 32px 80px rgba(31,39,84,0.28), 0 0 0 1px rgba(30,37,72,0.06)", overflow: "hidden" }}
+      >
+        {/* gradient top strip */}
+        <div style={{ background: "linear-gradient(135deg, #253ccf 0%, #3157f6 55%, #172784 100%)", padding: "28px 24px 22px" }}>
+          <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.08em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "5px 9px", borderRadius: 5, marginBottom: 14 }}>
+            LIMITED DROP · WORLD CUP 2026
+          </div>
+          <div style={{ fontSize: 38, marginBottom: 8 }}>🏟️</div>
+          <h2 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 28, color: "#fff", letterSpacing: "0.02em", lineHeight: 1.1 }}>
+            Win 2 seats<br />in NYC
+          </h2>
+          <p style={{ margin: 0, fontSize: 13, color: "#c8d0ff", lineHeight: 1.55 }}>
+            Top scorer in your league wins two tickets to the World Cup 2026 Final at MetLife Stadium.
+          </p>
+        </div>
+
+        {/* bottom section */}
+        <div style={{ padding: "20px 24px 24px" }}>
+          <ul style={{ margin: "0 0 20px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+            {[
+              ["⚽", "Lock your score predictions daily"],
+              ["📊", "Earn points for exact & partial hits"],
+              ["🥇", "Most points at the end takes the prize"],
+            ].map(([icon, text]) => (
+              <li key={text} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: P.ink }}>
+                <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{icon}</span>
+                {text}
+              </li>
+            ))}
+          </ul>
+          <button
+            onClick={onDismiss}
+            style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", background: P.blue, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", letterSpacing: "-0.01em" }}
+          >
+            Let&apos;s play →
+          </button>
+        </div>
+
+        {/* X close button */}
+        <button
+          onClick={onDismiss}
+          style={{ position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── App root ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("picks");
   const [ready, setReady] = useState(false);
+  const [showPromo, setShowPromo] = useState(false);
+
+  function dismissPromo() {
+    try { localStorage.setItem("sv_promo_seen", "1"); } catch {}
+    setShowPromo(false);
+  }
 
   useEffect(() => {
     const t = setTimeout(() => {
       try { const s = localStorage.getItem("sv_user"); if (s) setUser(JSON.parse(s)); } catch {}
+      try { if (!localStorage.getItem("sv_promo_seen")) setShowPromo(true); } catch {}
       setReady(true);
     }, 0);
     ensureSession().then(setUserId).catch(() => setUserId(null));
@@ -713,6 +779,7 @@ export default function App() {
 
         <BottomNav tab={tab} setTab={setTab} />
       </div>
+      {showPromo && <PromoPopup onDismiss={dismissPromo} />}
     </div>
   );
 }
