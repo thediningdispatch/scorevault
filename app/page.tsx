@@ -23,7 +23,7 @@ const P = {
 function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pct), 1.23)); }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Tab = "picks" | "results" | "ranking" | "league";
+type Tab = "picks" | "results" | "ranking" | "profile";
 type ScoreVal = number | "";
 
 interface Match {
@@ -161,11 +161,10 @@ function Countdown({ day }: { day: number }) {
 }
 
 // ── Picks: match card ─────────────────────────────────────────────────────────
-function MatchCard({ match: m, pick, onPick, showStats }: {
+function MatchCard({ match: m, pick, onPick }: {
   match: Match;
   pick: { home: ScoreVal; away: ScoreVal };
   onPick: (h: ScoreVal, a: ScoreVal) => void;
-  showStats: boolean;
 }) {
   const total = m.home.pct + m.draw.pct + m.away.pct;
   const hPct = Math.round((m.home.pct / total) * 100);
@@ -229,13 +228,11 @@ function MatchCard({ match: m, pick, onPick, showStats }: {
               style={inputSt(pick.away)}
             />
           </div>
-          {showStats && (
-            <div style={{ display: "flex", gap: 4, width: "100%" }}>
+          <div style={{ display: "flex", gap: 4, width: "100%" }}>
               <OddPill label="1" pct={hPct} />
               <OddPill label="X" pct={dPct} />
               <OddPill label="2" pct={aPct} />
             </div>
-          )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
           <Flag emoji={m.away.flag} size={68} />
@@ -251,7 +248,6 @@ function PicksTab({ userId }: { userId: string | null }) {
   const [day, setDay] = useState(19);
   const [picks, setPicks] = useState<Record<string, { home: ScoreVal; away: ScoreVal }>>({});
   const [saved, setSaved] = useState(false);
-  const [showStats, setShowStats] = useState(true);
 
   useEffect(() => {
     if (!userId) return;
@@ -278,25 +274,12 @@ function PicksTab({ userId }: { userId: string | null }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas, position: "relative" }}>
       <DayStrip selected={day} onSelect={setDay} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "13px 16px 9px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, fontWeight: 650, color: P.muted, cursor: "pointer" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-            Odds powered by
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://polymarket.com/images/brand/logo-black.png" alt="Polymarket" style={{ height: 12, opacity: 0.55, display: "block" }} />
-          </span>
-          <button onClick={() => setShowStats(s => !s)} style={{
-            width: 44, height: 26, borderRadius: 999, border: "none", cursor: "pointer",
-            padding: 3, background: showStats ? P.blue : "#d9dce7", transition: "background 0.15s",
-            display: "flex", alignItems: "center",
-          }}>
-            <div style={{
-              width: 20, height: 20, borderRadius: "50%", background: "#fff",
-              transform: showStats ? "translateX(18px)" : "translateX(0)",
-              transition: "transform 0.15s", boxShadow: "0 2px 5px rgba(0,0,0,0.18)",
-            }} />
-          </button>
-        </label>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 16px 6px" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: P.muted }}>
+          Odds powered by
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="https://polymarket.com/images/brand/logo-black.png" alt="Polymarket" style={{ height: 11, opacity: 0.45, display: "block" }} />
+        </span>
       </div>
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "4px 12px 0" }}>
@@ -310,7 +293,6 @@ function PicksTab({ userId }: { userId: string | null }) {
             key={m.id} match={m}
             pick={picks[m.id] ?? { home: "", away: "" }}
             onPick={(h, a) => setPicks(prev => ({ ...prev, [m.id]: { home: h, away: a } }))}
-            showStats={showStats}
           />
         ))}
         <div style={{ height: 88 }} />
@@ -464,13 +446,12 @@ function RankingTab({ user }: { user: { name: string; avatar: string } }) {
 }
 
 // ── League tab ────────────────────────────────────────────────────────────────
-function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
-  const [sub, setSub] = useState<"ranking" | "settings">("ranking");
+function ProfileTab({ user }: { user: { name: string; avatar: string } }) {
   const [copied, setCopied] = useState(false);
-  const [email, setEmail] = useState("");
-  const [waitlist, setWaitlist] = useState<"idle" | "loading" | "done">("idle");
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   useEffect(() => { getLeaderboard().then(setBoard); }, []);
+
+  const myRank = board.findIndex(p => p.name === user.name) + 1;
 
   function share() {
     if (navigator.share) {
@@ -482,90 +463,81 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
     }
   }
 
-  async function submitEmail() {
-    if (!email.includes("@")) return;
-    setWaitlist("loading");
-    try { await fetch("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) }); } catch {}
-    setWaitlist("done");
-  }
+  const RULES = [
+    { icon: "⚽", title: "Predict the score", body: "Enter the exact scoreline for each match before kick-off." },
+    { icon: "🔒", title: "Lock before kick-off", body: "Picks are locked once the match starts — no edits." },
+    { icon: "📊", title: "Earn points", body: "Exact score = maximum points (rarity-weighted). Correct result = partial points." },
+    { icon: "🏆", title: "Top score wins", body: "Most points at the end of the tournament takes the prize." },
+  ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas }}>
-      <div style={{ background: `linear-gradient(to bottom, rgba(49,87,246,0.06), ${P.canvas})`, padding: "20px 16px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-        <div style={{ width: 72, height: 72, borderRadius: 18, background: P.blueBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, border: "1px solid rgba(49,87,246,0.2)" }}>🏆</div>
-        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: P.ink }}>WC2026 SQUAD</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 12px", borderRadius: 20, background: P.white, border: `1px solid ${P.border}` }}>
-          <span>👥</span>
-          <span style={{ fontSize: 12, color: P.ink, fontWeight: 600 }}>{board.length} player{board.length !== 1 ? "s" : ""}</span>
-        </div>
-        <div style={{ display: "flex", width: "100%", marginTop: 8, borderBottom: `1px solid ${P.border}` }}>
-          {(["ranking", "settings"] as const).map(t => (
-            <button key={t} onClick={() => setSub(t)} style={{
-              flex: 1, padding: "12px 0", border: "none", cursor: "pointer",
-              background: "transparent", fontSize: 13, fontWeight: 700,
-              color: sub === t ? P.blue : P.muted,
-              borderBottom: `3px solid ${sub === t ? P.blue : "transparent"}`,
-              textTransform: "capitalize", transition: "color 0.15s",
-            }}>
-              {t === "ranking" ? "Ranking" : "Settings"}
-            </button>
-          ))}
-        </div>
+    <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas }}>
+
+      {/* Profile header */}
+      <div style={{ background: `linear-gradient(to bottom, rgba(49,87,246,0.07), ${P.canvas})`, padding: "22px 16px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <div style={{ width: 72, height: 72, borderRadius: "50%", background: P.white, border: `3px solid ${P.blue}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, boxShadow: "0 6px 20px rgba(49,87,246,0.18)" }}>{user.avatar}</div>
+        <h2 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 900, color: P.ink }}>{user.name}</h2>
+        {myRank > 0 && <div style={{ fontSize: 12, color: P.blue, fontWeight: 700 }}>#{myRank} in your league</div>}
       </div>
 
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
-        {sub === "ranking" ? (
-          <>
-            {board.map((p, i) => {
-              const isMe = p.name === user.name;
-              return (
-                <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${P.border}`, background: isMe ? P.blueBg : P.white }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, width: 18, color: i === 0 ? P.blue : P.muted }}>{i + 1}</span>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: P.ink }}>
-                      {p.name}{isMe && <span style={{ color: P.blue, fontSize: 11, marginLeft: 6 }}>· you</span>}
-                    </span>
-                  </div>
-                  <span style={{ fontSize: 17, fontWeight: 900, color: P.blue }}>{p.total_pts}</span>
-                </div>
-              );
-            })}
-            <div style={{ padding: 16 }}>
-              <button onClick={share} style={{ width: "100%", padding: 18, borderRadius: 14, border: `1.5px solid ${P.border}`, background: P.white, color: P.ink, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
-                + Invite a friend
-              </button>
-            </div>
-          </>
-        ) : (
-          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, background: P.white, borderRadius: 14, border: `1px solid ${P.border}` }}>
-              <span style={{ fontSize: 15, color: P.ink }}>Copy code</span>
-              <button onClick={share} style={{ background: "none", border: "none", fontSize: 15, fontWeight: 700, color: P.blue, cursor: "pointer" }}>
-                {copied ? "Copied!" : LEAGUE_CODE}
-              </button>
-            </div>
-            <div style={{ borderRadius: 18, padding: 18, background: "linear-gradient(145deg, #253ccf, #3157f6 52%, #172784)", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 18px 38px rgba(49,87,246,0.22)" }}>
-              <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.08em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "5px 8px", borderRadius: 5, marginBottom: 16 }}>LIMITED DROP · WORLD CUP 2026</div>
-              <h3 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 26, color: "#fff", letterSpacing: "0.02em" }}>Win 2 seats in NYC</h3>
-              <p style={{ margin: "0 0 14px", fontSize: 12, color: "#e2e6ff", lineHeight: 1.55 }}>Lock USDC, beat your friends, and play for two seats at the World Cup Final.</p>
-              {waitlist === "done" ? (
-                <div style={{ padding: 14, borderRadius: 10, background: "rgba(17,113,57,0.28)", border: "1px solid rgba(255,255,255,0.24)", color: "#fff", fontSize: 12, fontWeight: 800, textAlign: "center" }}>
-                  ✓ You&apos;re on the priority list
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  <input type="email" placeholder="Enter your email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && submitEmail()}
-                    style={{ padding: "13px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.28)", background: "rgba(255,255,255,0.13)", color: "#fff", fontSize: 13, outline: "none" }} />
-                  <button onClick={submitEmail} disabled={!email.includes("@") || waitlist === "loading"}
-                    style={{ padding: 14, borderRadius: 10, border: "none", background: "#fff", color: "#1637d5", fontSize: 12, fontWeight: 900, cursor: "pointer", opacity: email.includes("@") ? 1 : 0.6 }}>
-                    {waitlist === "loading" ? "Joining…" : "Get priority access →"}
-                  </button>
-                </div>
-              )}
-            </div>
+      <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: 12, paddingBottom: 24 }}>
+
+        {/* League standings */}
+        <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "12px 14px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>MY LEAGUE</span>
+            <span style={{ fontSize: 11, color: P.muted }}>{board.length} player{board.length !== 1 ? "s" : ""}</span>
           </div>
-        )}
+          {board.slice(0, 5).map((p, i) => {
+            const isMe = p.name === user.name;
+            return (
+              <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${P.border}`, background: isMe ? P.blueBg : "transparent" }}>
+                <span style={{ fontSize: 12, fontWeight: 800, width: 18, color: i === 0 ? "#f59e0b" : P.muted }}>{i === 0 ? "🥇" : i + 1}</span>
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, margin: "0 9px", border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.ink }}>{p.name}{isMe && <span style={{ color: P.blue, fontSize: 10, marginLeft: 5 }}>· you</span>}</span>
+                <span style={{ fontSize: 15, fontWeight: 900, color: P.blue }}>{p.total_pts} pts</span>
+              </div>
+            );
+          })}
+          <div style={{ padding: "10px 14px", borderTop: `1px solid ${P.border}`, display: "flex", gap: 8 }}>
+            <button onClick={share} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1.5px solid ${P.border}`, background: "none", color: P.ink, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              + Invite
+            </button>
+            <button onClick={share} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: P.blueBg, color: P.blue, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              {copied ? "Copied!" : `Code: ${LEAGUE_CODE}`}
+            </button>
+          </div>
+        </div>
+
+        {/* How to play */}
+        <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${P.border}` }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>HOW TO PLAY</span>
+          </div>
+          <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {RULES.map(r => (
+              <div key={r.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 20, flexShrink: 0 }}>{r.icon}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: P.ink, marginBottom: 1 }}>{r.title}</div>
+                  <div style={{ fontSize: 12, color: P.muted, lineHeight: 1.5 }}>{r.body}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* LT vision */}
+        <div style={{ borderRadius: 16, padding: 18, background: "linear-gradient(145deg, #253ccf, #3157f6 52%, #172784)", boxShadow: "0 12px 32px rgba(49,87,246,0.22)" }}>
+          <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "4px 8px", borderRadius: 4, marginBottom: 12 }}>COMING SOON</div>
+          <h3 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 22, color: "#fff", letterSpacing: "0.02em" }}>ScoreVault v2</h3>
+          <p style={{ margin: 0, fontSize: 12, color: "#c8d0ff", lineHeight: 1.6 }}>
+            Stake USDC · on-chain scoring · real prizes.<br />
+            Top scorer at WC2026 Final wins <strong style={{ color: "#fff" }}>2 seats in NYC</strong>.<br />
+            Built on Base — trustless, transparent, no middleman.
+          </p>
+        </div>
+
       </div>
     </div>
   );
@@ -614,7 +586,7 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 const TAB_TITLES: Record<Tab, string> = {
-  picks: "MY PREDICTIONS", results: "RESULTS", ranking: "STANDINGS", league: "MY LEAGUES",
+  picks: "MY PREDICTIONS", results: "RESULTS", ranking: "STANDINGS", profile: "PROFILE",
 };
 
 function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
@@ -631,12 +603,10 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
         <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
       </svg>
     )},
-    { id: "league", label: "My leagues", icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "league" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    { id: "profile", label: "Profile", icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "profile" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
       </svg>
     )},
   ];
@@ -927,7 +897,7 @@ export default function App() {
           {tab === "picks"   && <PicksTab userId={userId} />}
           {tab === "results" && <ResultsTab />}
           {tab === "ranking" && <RankingTab user={user} />}
-          {tab === "league"  && <LeagueTab user={user} />}
+          {tab === "profile"  && <ProfileTab user={user} />}
         </main>
 
         <BottomNav tab={tab} setTab={setTab} />
