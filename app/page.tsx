@@ -1,1240 +1,931 @@
 "use client";
+import { useState, useEffect } from "react";
+import { Trophy, Users, Share2, Check, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { useState, useRef, useEffect } from "react";
-import {
-  motion,
-  AnimatePresence,
-  useInView,
-  useScroll,
-  useTransform,
-} from "framer-motion";
-import {
-  Trophy, Users, Calendar, Clock,
-  Check, Star, TrendingUp, TrendingDown, ArrowRight,
-  Zap, Shield, BarChart3, Home as HomeIcon, Target, List,
-  Lock, Cpu, Eye, DollarSign, ExternalLink, Flame, Hash,
-} from "lucide-react";
-
-// ─── Data ──────────────────────────────────────────────────────────────────────
-
-const MY_NAME = "Jake";
-
-const LEAGUE = {
-  name: "NYC World Cup Crew",
-  pool: 200,
-  entry: 20,
-  playerCount: 10,
-  totalMatches: 46,
-  doneMatches: 18,
-  myRank: 2,
-  myPts: 1720,
+// ─── Theme: MPP × Revolut ─────────────────────────────────────────────────────
+const T = {
+  bg:       "#F4F6F9",
+  surface:  "#FFFFFF",
+  border:   "#E8ECF2",
+  accent:   "#10B981",
+  accentBg: "#ECFDF5",
+  accentDk: "#059669",
+  gold:     "#F59E0B",
+  goldBg:   "#FFFBEB",
+  text:     "#0F172A",
+  sub:      "#64748B",
+  mute:     "#94A3B8",
+  green:    "#10B981",
+  red:      "#EF4444",
+  redBg:    "#FEF2F2",
+  blue:     "#3B82F6",
 };
 
-const PLAYERS = [
-  { rank: 1,  name: "Tyler",  pts: 1840, trend: "+12", isMe: false },
-  { rank: 2,  name: "Jake",   pts: 1720, trend: "+8",  isMe: true  },
-  { rank: 3,  name: "Sarah",  pts: 1610, trend: "+5",  isMe: false },
-  { rank: 4,  name: "Mike",   pts: 1420, trend: "-2",  isMe: false },
-  { rank: 5,  name: "Emma",   pts: 1350, trend: "-4",  isMe: false },
-  { rank: 6,  name: "Chris",  pts: 1180, trend: "-6",  isMe: false },
-  { rank: 7,  name: "Zara",   pts: 1050, trend: "-3",  isMe: false },
-  { rank: 8,  name: "Marcus", pts:  890, trend: "-8",  isMe: false },
-  { rank: 9,  name: "Lily",   pts:  740, trend: "-2",  isMe: false },
-  { rank: 10, name: "Kai",    pts:  610, trend: "-11", isMe: false },
+// ─── Points formula ───────────────────────────────────────────────────────────
+// Calibrated: cote 1.3 → 30 pts, cote 4.0 → 120 pts
+// Exact score = ×3 bonus
+function calcPoints(pct: number): number {
+  const odds = 100 / Math.max(1, pct);
+  return Math.round(22 * Math.pow(odds, 1.23));
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type ScoreVal = number | "";
+type Tab = "picks" | "results" | "leaderboard" | "league";
+
+interface Match {
+  id: string; day: number; time: string;
+  home: { name: string; flag: string; pct: number };
+  draw: { pct: number };
+  away: { name: string; flag: string; pct: number };
+}
+
+interface PastMatch {
+  id: string; day: number; date: string;
+  home: { name: string; flag: string; score: number; pct: number };
+  draw: { pct: number };
+  away: { name: string; flag: string; score: number; pct: number };
+  myPick: { home: number; away: number } | null;
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+const MATCHES: Match[] = [
+  { id: "gha-pan", day: 18, time: "3:00 PM ET",
+    home: { name: "Ghana",       flag: "🇬🇭", pct: 56 },
+    draw: { pct: 26 },
+    away: { name: "Panama",      flag: "🇵🇦", pct: 18 } },
+  { id: "uzb-col", day: 18, time: "6:00 PM ET",
+    home: { name: "Uzbekistan",  flag: "🇺🇿", pct: 8  },
+    draw: { pct: 22 },
+    away: { name: "Colombia",    flag: "🇨🇴", pct: 70 } },
+  { id: "cze-rsa", day: 18, time: "9:00 PM ET",
+    home: { name: "Czechia",     flag: "🇨🇿", pct: 52 },
+    draw: { pct: 28 },
+    away: { name: "South Africa",flag: "🇿🇦", pct: 20 } },
+  { id: "usa-bol", day: 19, time: "12:00 PM ET",
+    home: { name: "USA",         flag: "🇺🇸", pct: 72 },
+    draw: { pct: 18 },
+    away: { name: "Bolivia",     flag: "🇧🇴", pct: 10 } },
+  { id: "ecu-ven", day: 19, time: "3:00 PM ET",
+    home: { name: "Ecuador",     flag: "🇪🇨", pct: 48 },
+    draw: { pct: 28 },
+    away: { name: "Venezuela",   flag: "🇻🇪", pct: 24 } },
+  { id: "fra-aut", day: 20, time: "6:00 PM ET",
+    home: { name: "France",      flag: "🇫🇷", pct: 68 },
+    draw: { pct: 20 },
+    away: { name: "Austria",     flag: "🇦🇹", pct: 12 } },
+  { id: "bra-arg", day: 20, time: "9:00 PM ET",
+    home: { name: "Brazil",      flag: "🇧🇷", pct: 38 },
+    draw: { pct: 26 },
+    away: { name: "Argentina",   flag: "🇦🇷", pct: 36 } },
 ];
 
-const UPCOMING_MATCHES = [
-  {
-    id: 1,
-    home: { name: "France",    flag: "🇫🇷" },
-    away: { name: "Argentina", flag: "🇦🇷" },
-    date: "Sat Jun 28", time: "9:00 PM",
-    phase: "Round of 16",
-    deadline: "Sat Jun 28 · 8:45 PM",
-  },
-  {
-    id: 2,
-    home: { name: "Brazil",  flag: "🇧🇷" },
-    away: { name: "Germany", flag: "🇩🇪" },
-    date: "Sun Jun 29", time: "6:00 PM",
-    phase: "Round of 16",
-    deadline: "Sun Jun 29 · 5:45 PM",
-  },
-  {
-    id: 3,
-    home: { name: "Spain",   flag: "🇪🇸" },
-    away: { name: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
-    date: "Mon Jun 30", time: "9:00 PM",
-    phase: "Round of 16",
-    deadline: "Mon Jun 30 · 8:45 PM",
-  },
+const PAST: PastMatch[] = [
+  { id: "mex-rsa", day: 17, date: "Jun 17",
+    home: { name: "Mexico",      flag: "🇲🇽", score: 2, pct: 58 },
+    draw: { pct: 24 },
+    away: { name: "South Africa",flag: "🇿🇦", score: 0, pct: 18 },
+    myPick: { home: 2, away: 0 } },
+  { id: "kor-cze", day: 17, date: "Jun 17",
+    home: { name: "South Korea", flag: "🇰🇷", score: 2, pct: 44 },
+    draw: { pct: 28 },
+    away: { name: "Czechia",     flag: "🇨🇿", score: 1, pct: 28 },
+    myPick: { home: 2, away: 1 } },
+  { id: "can-bih", day: 17, date: "Jun 17",
+    home: { name: "Canada",      flag: "🇨🇦", score: 1, pct: 52 },
+    draw: { pct: 26 },
+    away: { name: "Bosnia",      flag: "🇧🇦", score: 1, pct: 22 },
+    myPick: { home: 1, away: 0 } },
 ];
 
-const PAST_MATCHES = [
-  {
-    id: 10,
-    home: { name: "France",  flag: "🇫🇷", score: 2 },
-    away: { name: "Belgium", flag: "🇧🇪", score: 1 },
-    myPred: { home: 2, away: 0 },
-    pts: 130, date: "Jun 12",
-  },
-  {
-    id: 11,
-    home: { name: "Argentina", flag: "🇦🇷", score: 2 },
-    away: { name: "Poland",    flag: "🇵🇱", score: 1 },
-    myPred: { home: 2, away: 1 },
-    pts: 200, date: "Jun 13",
-  },
-  {
-    id: 12,
-    home: { name: "Spain",       flag: "🇪🇸", score: 3 },
-    away: { name: "Switzerland", flag: "🇨🇭", score: 0 },
-    myPred: { home: 2, away: 0 },
-    pts: 80, date: "Jun 14",
-  },
-  {
-    id: 13,
-    home: { name: "Brazil", flag: "🇧🇷", score: 1 },
-    away: { name: "Mexico", flag: "🇲🇽", score: 1 },
-    myPred: { home: 2, away: 0 },
-    pts: 0, date: "Jun 16",
-  },
+const DAYS = [
+  { short: "17", label: "Jun 17", day: 17 },
+  { short: "18", label: "Jun 18", day: 18, today: true },
+  { short: "19", label: "Jun 19", day: 19 },
+  { short: "20", label: "Jun 20", day: 20 },
+  { short: "21", label: "Jun 21", day: 21 },
+  { short: "22", label: "Jun 22", day: 22 },
+  { short: "23", label: "Jun 23", day: 23 },
 ];
 
-// ─── Utils ─────────────────────────────────────────────────────────────────────
+const LEAGUE = { name: "WC2026 Squad", code: "SV-2026" };
 
-function ptColor(pts: number) {
-  if (pts >= 150) return "#10b981";
-  if (pts >= 80)  return "#60a5fa";
-  if (pts > 0)    return "#f59e0b";
-  return "#475569";
-}
+const MOCK_BOARD = [
+  { name: "Vianney",   avatar: "🦁", pts: 480, exact: 2, correct: 3 },
+  { name: "Jules",     avatar: "🐯", pts: 280, exact: 1, correct: 2 },
+  { name: "Guillaume", avatar: "🦊", pts: 120, exact: 0, correct: 1 },
+];
 
-function avatarColor(name: string) {
-  const palette = ["#3b82f6","#8b5cf6","#ec4899","#10b981","#f59e0b","#06b6d4","#ef4444","#84cc16"];
-  return palette[name.charCodeAt(0) % palette.length];
-}
+const AVATARS = ["⚽", "🦁", "🐯", "🦊", "🐺", "🦅", "🐉", "🦄"];
 
-// ─── Primitives ────────────────────────────────────────────────────────────────
-
-function Reveal({ children, delay = 0, className = "" }: {
-  children: React.ReactNode; delay?: number; className?: string;
-}) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
-  return (
-    <motion.div ref={ref}
-      initial={{ opacity: 0, y: 20 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}>
-      {children}
-    </motion.div>
-  );
-}
-
-function Tag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium tracking-widest uppercase"
-      style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
-      {children}
-    </span>
-  );
-}
-
-function Avatar({ name, isMe = false }: { name: string; isMe?: boolean }) {
-  const c = avatarColor(name);
-  return (
-    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
-      style={{ background: `${c}22`, color: c, border: `2px solid ${isMe ? c : "transparent"}` }}>
-      {name[0]}
-    </div>
-  );
-}
-
-// ─── Nav ───────────────────────────────────────────────────────────────────────
-
-function Nav() {
-  const { scrollY } = useScroll();
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => scrollY.on("change", v => setScrolled(v > 40)), [scrollY]);
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void }) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [name, setName] = useState("");
+  const [avatar, setAvatar] = useState(AVATARS[0]);
+  const valid = name.trim().length >= 2;
 
   return (
-    <motion.nav
-      className="fixed top-0 left-0 right-0 z-50 px-6 py-3.5 flex items-center justify-between transition-all duration-300"
-      style={{
-        background: scrolled ? "rgba(5,8,16,0.92)" : "transparent",
-        backdropFilter: scrolled ? "blur(20px)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "1px solid transparent",
-      }}>
-      <div className="flex items-center gap-2.5">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: "rgba(59,130,246,0.2)" }}>
-          <Zap size={13} style={{ color: "#60a5fa" }} />
-        </div>
-        <span className="font-bold text-sm tracking-tight">ScoreVault</span>
-        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-          style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
-          TESTNET
-        </span>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs hidden sm:block" style={{ color: "#475569" }}>
-          ⚽ FIFA World Cup 2026
-        </span>
-        <a href="#app"
-          className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 hover:-translate-y-px"
-          style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white" }}>
-          Try the demo
-        </a>
-      </div>
-    </motion.nav>
-  );
-}
+    <div style={{
+      height: "100%", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      padding: "32px 24px", background: T.surface,
+    }}>
+      <div style={{
+        width: 80, height: 80, borderRadius: 24, marginBottom: 20,
+        background: T.accent, display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 38, boxShadow: `0 8px 32px ${T.accent}50`,
+      }}>⚽</div>
 
-// ─── Hero ──────────────────────────────────────────────────────────────────────
+      <h1 style={{ fontSize: 28, fontWeight: 900, color: T.text, margin: "0 0 8px", textAlign: "center" }}>
+        ScoreVault
+      </h1>
+      <p style={{ fontSize: 14, color: T.sub, margin: "0 0 40px", textAlign: "center", lineHeight: 1.6 }}>
+        {step === 1
+          ? "Pick scores. Climb the board.\nChallenge your crew."
+          : `Nice, ${name.trim()}! Now pick your avatar 👇`}
+      </p>
 
-function Hero() {
-  const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 400], [0, 80]);
-  const opacity = useTransform(scrollY, [0, 300], [1, 0]);
-
-  return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-12 overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage: "linear-gradient(rgba(59,130,246,0.7) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.7) 1px, transparent 1px)",
-          backgroundSize: "50px 50px",
-        }} />
-      <motion.div className="absolute -top-32 right-0 w-[500px] h-[500px] rounded-full pointer-events-none"
-        animate={{ scale: [1, 1.12, 1], opacity: [0.12, 0.22, 0.12] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        style={{ background: "radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)" }} />
-      <motion.div className="absolute -bottom-32 -left-32 w-[400px] h-[400px] rounded-full pointer-events-none"
-        animate={{ scale: [1, 1.15, 1], opacity: [0.08, 0.18, 0.08] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 3 }}
-        style={{ background: "radial-gradient(circle, rgba(16,185,129,0.2) 0%, transparent 70%)" }} />
-
-      <motion.div style={{ y, opacity }} className="relative z-10 text-center max-w-4xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-          className="mb-5">
-          <Tag>⚽ FIFA World Cup 2026 · On-chain beta</Tag>
-        </motion.div>
-
-        <motion.h1
-          initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          className="text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.06] tracking-tight mb-6">
-          The friend league<br />
-          <span className="gradient-text">that runs itself.</span>
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-lg md:text-xl max-w-2xl mx-auto mb-4 leading-relaxed"
-          style={{ color: "#94a3b8" }}>
-          Score predictions. Prize pool locked on-chain. Payouts automatic.
-          <strong style={{ color: "#f1f5f9" }}> No commissioner. No Venmo. No trust required.</strong>
-        </motion.p>
-
-        <motion.p
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.25 }}
-          className="text-sm max-w-xl mx-auto mb-10"
-          style={{ color: "#475569" }}>
-          Think March Madness bracket pool — except a smart contract holds the money, calculates every score,
-          and distributes winnings the moment the final whistle blows. Zero human intervention.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <a href="#app"
-            className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 hover:-translate-y-0.5"
-            style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)" }}>
-            Try the demo <ArrowRight size={15} />
-          </a>
-          <a href="#onchain"
-            className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#e2e8f0" }}>
-            Why on-chain?
-          </a>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.45 }}
-          className="mt-16 grid grid-cols-3 gap-6 max-w-sm mx-auto">
-          {[
-            { val: "$200",  label: "Avg prize pool"   },
-            { val: "10",    label: "Friends per league" },
-            { val: "100%",  label: "Automated"          },
-          ].map(({ val, label }) => (
-            <div key={label} className="text-center">
-              <div className="text-2xl font-bold" style={{ color: "#60a5fa" }}>{val}</div>
-              <div className="text-xs mt-0.5" style={{ color: "#475569" }}>{label}</div>
-            </div>
-          ))}
-        </motion.div>
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2">
-        <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 1.5, repeat: Infinity }}
-          className="flex flex-col items-center gap-1" style={{ color: "#334155" }}>
-          <div className="w-px h-7 bg-gradient-to-b from-transparent to-current" />
-          <div className="text-[10px] tracking-widest uppercase">Scroll</div>
-        </motion.div>
-      </motion.div>
-    </section>
-  );
-}
-
-// ─── Why On-Chain ──────────────────────────────────────────────────────────────
-
-function OnChain() {
-  const PILLARS = [
-    {
-      icon: Lock,
-      color: "#3b82f6",
-      title: "No one holds the money",
-      body: "Every ESPN bracket pool has the same problem: someone has to hold the cash. That someone can lose it, forget to pay out, or just disappear. With ScoreVault, funds are locked in a smart contract the moment the league starts. Nobody — including us — can touch them.",
-    },
-    {
-      icon: Cpu,
-      color: "#8b5cf6",
-      title: "Scores calculated on-chain",
-      body: "No black box, no dispute with the commissioner. The scoring formula lives in code, deployed on-chain, publicly readable. When a match ends, an oracle posts the official result and the contract runs the math. Immutable, verifiable, final.",
-    },
-    {
-      icon: DollarSign,
-      color: "#10b981",
-      title: "Payouts are automatic",
-      body: "When the tournament ends, the contract distributes. No waiting on Venmo requests. No chasing the group chat. No one needs to 'do the math.' The smart contract already did — proportionally to every player's accuracy across all matches.",
-    },
-    {
-      icon: Eye,
-      color: "#06b6d4",
-      title: "Play with anyone",
-      body: "Because trust is replaced by code, you're not limited to your inner circle. City-wide leagues, workplace competitions, Twitter communities — anyone can join without anyone needing to vouch for the prize manager. The contract is the referee.",
-    },
-  ];
-
-  return (
-    <section id="onchain" className="py-24 px-6" style={{ background: "rgba(13,17,23,0.6)" }}>
-      <div className="max-w-4xl mx-auto">
-        <Reveal className="text-center mb-16">
-          <Tag>Why on-chain</Tag>
-          <h2 className="mt-5 text-4xl font-bold leading-tight">
-            Zero human intervention.<br />
-            <span className="gradient-text">From deposit to payout.</span>
-          </h2>
-          <p className="mt-4 text-base max-w-2xl mx-auto" style={{ color: "#64748b" }}>
-            Blockchain isn't the product. It's the infrastructure that makes the product trustless.
-            Here's what that means in practice.
-          </p>
-        </Reveal>
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          {PILLARS.map(({ icon: Icon, color, title, body }, i) => (
-            <Reveal key={title} delay={i * 0.08}>
-              <motion.div
-                whileHover={{ y: -3 }}
-                transition={{ duration: 0.2 }}
-                className="glass rounded-2xl p-6 h-full glow-card">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 flex-shrink-0"
-                  style={{ background: `${color}18` }}>
-                  <Icon size={18} style={{ color }} />
-                </div>
-                <div className="font-bold text-base mb-2">{title}</div>
-                <div className="text-sm leading-relaxed" style={{ color: "#64748b" }}>{body}</div>
-              </motion.div>
-            </Reveal>
-          ))}
-        </div>
-
-        <Reveal delay={0.4} className="mt-8">
-          <div className="rounded-2xl p-5 flex items-start gap-4"
-            style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
-            <Shield size={16} style={{ color: "#10b981", flexShrink: 0, marginTop: 2 }} />
-            <div>
-              <div className="text-sm font-semibold mb-1" style={{ color: "#10b981" }}>
-                Currently running on testnet
-              </div>
-              <p className="text-sm leading-relaxed" style={{ color: "#64748b" }}>
-                ScoreVault is in open beta on Ethereum testnet — no real funds at risk.
-                We're stress-testing the contracts, the oracle integration, and the scoring engine
-                before a mainnet launch. All the mechanics are live. The money isn't real yet.
-              </p>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-// ─── App Demo ──────────────────────────────────────────────────────────────────
-
-type Tab = "league" | "predictions" | "leaderboard";
-
-function LeagueHeader() {
-  const pct = (LEAGUE.doneMatches / LEAGUE.totalMatches) * 100;
-  return (
-    <div className="rounded-2xl p-4 mb-4"
-      style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.14), rgba(6,182,212,0.07))", border: "1px solid rgba(59,130,246,0.2)" }}>
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <Trophy size={13} style={{ color: "#f59e0b" }} />
-            <span className="font-bold text-sm">{LEAGUE.name}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "#64748b" }}>
-            <Lock size={9} style={{ color: "#10b981" }} />
-            <span style={{ color: "#10b981" }}>On-chain · </span>
-            ⚽ FIFA World Cup 2026
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-xl font-bold" style={{ color: "#10b981" }}>${LEAGUE.pool}</div>
-          <div className="text-[10px]" style={{ color: "#475569" }}>locked in contract</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
-          <div className="flex justify-between text-[10px] mb-1" style={{ color: "#475569" }}>
-            <span>{LEAGUE.doneMatches} matches played</span>
-            <span>{LEAGUE.totalMatches - LEAGUE.doneMatches} remaining</span>
-          </div>
-          <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
-              transition={{ duration: 1.2, ease: "easeOut" }}
-              className="h-full rounded-full"
-              style={{ background: "linear-gradient(90deg, #3b82f6, #06b6d4)" }} />
-          </div>
-        </div>
-        <div className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full flex-shrink-0"
-          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
-          <Users size={10} /> {LEAGUE.playerCount} players
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab: My League ─────────────────────────────────────────────────────────────
-
-function TabLeague({ onGoPredict }: { onGoPredict: () => void }) {
-  const totalSq = PLAYERS.reduce((a, p) => a + p.pts * p.pts, 0);
-  const myEst = Math.round((LEAGUE.pool * LEAGUE.myPts * LEAGUE.myPts) / totalSq);
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { label: "My rank",     val: `#${LEAGUE.myRank}`,           color: "#f59e0b", Icon: Trophy       },
-          { label: "My points",   val: LEAGUE.myPts.toLocaleString(), color: "#60a5fa", Icon: Star         },
-          { label: "Est. payout", val: `~$${myEst}`,                  color: "#10b981", Icon: DollarSign   },
-        ].map(({ label, val, color, Icon }) => (
-          <div key={label} className="glass rounded-xl p-3 text-center">
-            <Icon size={13} style={{ color }} className="mx-auto mb-1.5" />
-            <div className="font-bold text-sm" style={{ color }}>{val}</div>
-            <div className="text-[10px] mt-0.5" style={{ color: "#475569" }}>{label}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="glass rounded-2xl p-4">
-        <div className="flex items-center gap-1.5 mb-3 text-[11px] font-semibold" style={{ color: "#475569" }}>
-          <BarChart3 size={11} /> Recent matches
-        </div>
-        <div className="space-y-1.5">
-          {PAST_MATCHES.slice(0, 3).map(m => {
-            const exact = m.myPred.home === m.home.score && m.myPred.away === m.away.score;
-            const goodOutcome = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
-              && (m.myPred.home !== m.myPred.away || m.home.score === m.away.score);
-            return (
-              <div key={m.id} className="flex items-center gap-3 px-2 py-1.5 rounded-lg"
-                style={{ background: "rgba(255,255,255,0.02)" }}>
-                <span className="text-[11px] w-12 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
-                <div className="flex-1 flex items-center justify-center gap-2 text-sm">
-                  <span>{m.home.flag}</span>
-                  <span className="font-mono font-bold text-xs px-2 py-0.5 rounded"
-                    style={{ background: "rgba(255,255,255,0.05)" }}>
-                    {m.home.score} – {m.away.score}
-                  </span>
-                  <span>{m.away.flag}</span>
-                </div>
-                <span className="text-[11px] flex-shrink-0" style={{ color: "#475569" }}>
-                  Pick: {m.myPred.home}-{m.myPred.away}
-                </span>
-                <div className="w-16 text-right flex-shrink-0">
-                  <div className="font-mono font-bold text-xs" style={{ color: ptColor(m.pts) }}>
-                    {m.pts > 0 ? `+${m.pts}` : "0"} pts
-                  </div>
-                  <div className="text-[9px]"
-                    style={{ color: exact ? "#10b981" : goodOutcome ? "#60a5fa" : "#475569" }}>
-                    {exact ? "Exact!" : goodOutcome ? "Good call" : "Missed"}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="glass rounded-xl p-4 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] mb-1" style={{ color: "#64748b" }}>Next pick due</div>
-          <div className="flex items-center gap-1.5 font-bold text-sm">
-            <span>🇫🇷</span> France vs Argentina <span>🇦🇷</span>
-          </div>
-          <div className="flex items-center gap-1 text-[10px] mt-0.5" style={{ color: "#f59e0b" }}>
-            <Clock size={9} /> Locks: Sat Jun 28 · 8:45 PM
-          </div>
-        </div>
-        <motion.button onClick={onGoPredict}
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          className="px-4 py-2 rounded-xl text-xs font-semibold flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white" }}>
-          Pick now →
-        </motion.button>
-      </div>
-    </div>
-  );
-}
-
-// ── Match Card ─────────────────────────────────────────────────────────────────
-
-function MatchCard({
-  match,
-  submitted,
-  onSubmit,
-}: {
-  match: typeof UPCOMING_MATCHES[0];
-  submitted: { home: number; away: number } | null;
-  onSubmit: (pred: { home: number; away: number }) => void;
-}) {
-  const [home, setHome] = useState(1);
-  const [away, setAway] = useState(1);
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = () => {
-    setLoading(true);
-    setTimeout(() => { setLoading(false); onSubmit({ home, away }); }, 800);
-  };
-
-  return (
-    <div className="glass rounded-2xl p-5"
-      style={{ border: `1px solid ${submitted ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.06)"}` }}>
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-[10px] tracking-widest uppercase font-semibold px-2 py-0.5 rounded-full"
-          style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>
-          {match.phase}
-        </span>
-        <div className="flex items-center gap-1 text-[11px]" style={{ color: "#475569" }}>
-          <Calendar size={10} /> {match.date} · {match.time}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 my-5">
-        <div className="flex-1 text-center">
-          <div className="text-3xl mb-1.5">{match.home.flag}</div>
-          <div className="text-xs font-semibold" style={{ color: "#94a3b8" }}>{match.home.name}</div>
-        </div>
-
-        {submitted ? (
-          <div className="flex items-center gap-2.5">
-            <span className="font-mono font-bold text-2xl" style={{ color: "#10b981" }}>{submitted.home}</span>
-            <span style={{ color: "#334155" }}>–</span>
-            <span className="font-mono font-bold text-2xl" style={{ color: "#10b981" }}>{submitted.away}</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col items-center gap-1">
-              <button onClick={() => setHome(h => h + 1)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
-                style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
-              <span className="font-mono font-bold text-2xl w-8 text-center" style={{ color: "#60a5fa" }}>{home}</span>
-              <button onClick={() => setHome(h => Math.max(0, h - 1))}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
-                style={{ background: "rgba(255,255,255,0.05)" }}>–</button>
-            </div>
-            <span className="font-bold text-xl" style={{ color: "#334155" }}>–</span>
-            <div className="flex flex-col items-center gap-1">
-              <button onClick={() => setAway(a => a + 1)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
-                style={{ background: "rgba(255,255,255,0.05)" }}>+</button>
-              <span className="font-mono font-bold text-2xl w-8 text-center" style={{ color: "#60a5fa" }}>{away}</span>
-              <button onClick={() => setAway(a => Math.max(0, a - 1))}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/10 transition-colors"
-                style={{ background: "rgba(255,255,255,0.05)" }}>–</button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 text-center">
-          <div className="text-3xl mb-1.5">{match.away.flag}</div>
-          <div className="text-xs font-semibold" style={{ color: "#94a3b8" }}>{match.away.name}</div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-1.5 text-[10px] mb-3" style={{ color: "#f59e0b" }}>
-        <Clock size={9} /> Locks: {match.deadline}
-      </div>
-
-      {submitted ? (
-        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold"
-          style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>
-          <Check size={14} /> Pick submitted on-chain
-        </motion.div>
+      {step === 1 ? (
+        <>
+          <label style={{
+            width: "100%", display: "block", marginBottom: 8,
+            fontSize: 11, fontWeight: 700, color: T.mute,
+            textTransform: "uppercase", letterSpacing: "0.08em",
+          }}>Your name</label>
+          <input
+            type="text" autoFocus placeholder="e.g. Jules"
+            value={name} onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
+            style={{
+              width: "100%", padding: "16px 20px", marginBottom: 16,
+              borderRadius: 16, outline: "none", boxSizing: "border-box",
+              border: `2px solid ${valid ? T.accent : T.border}`,
+              background: T.bg, fontSize: 20, fontWeight: 700,
+              color: T.text, transition: "border-color 0.2s",
+            }}
+          />
+          <button onClick={() => valid && setStep(2)} disabled={!valid} style={{
+            width: "100%", padding: "18px", borderRadius: 16, border: "none",
+            background: valid ? T.accent : T.mute, color: "white",
+            fontSize: 16, fontWeight: 700, cursor: valid ? "pointer" : "default",
+            boxShadow: valid ? `0 4px 20px ${T.accent}50` : "none",
+            transition: "all 0.2s",
+          }}>Continue →</button>
+        </>
       ) : (
-        <motion.button onClick={handleSubmit} disabled={loading} whileTap={{ scale: 0.97 }}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity"
-          style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)", color: "white", opacity: loading ? 0.8 : 1 }}>
-          {loading ? (
-            <>
-              <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                className="w-4 h-4 rounded-full border-2"
-                style={{ borderColor: "rgba(255,255,255,0.3)", borderTopColor: "white" }} />
-              Submitting...
-            </>
-          ) : "Lock in my pick"}
-        </motion.button>
+        <>
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 12, width: "100%", marginBottom: 24,
+          }}>
+            {AVATARS.map(a => (
+              <button key={a} onClick={() => setAvatar(a)} style={{
+                fontSize: 36, padding: "16px 0", borderRadius: 16, cursor: "pointer",
+                background: avatar === a ? T.accentBg : T.bg,
+                border: `2px solid ${avatar === a ? T.accent : T.border}`,
+                transition: "all 0.15s",
+              }}>{a}</button>
+            ))}
+          </div>
+          <button onClick={() => onDone(name.trim(), avatar)} style={{
+            width: "100%", padding: "18px", borderRadius: 16, border: "none",
+            background: T.accent, color: "white", fontSize: 16, fontWeight: 700,
+            cursor: "pointer", boxShadow: `0 4px 20px ${T.accent}50`,
+          }}>Let&apos;s play! 🚀</button>
+        </>
       )}
     </div>
   );
 }
 
-// ── Tab: Predictions ───────────────────────────────────────────────────────────
-
-function TabPredictions() {
-  const [view, setView] = useState<"upcoming" | "past">("upcoming");
-  const [submitted, setSubmitted] = useState<Record<number, { home: number; away: number }>>({});
-  const remaining = UPCOMING_MATCHES.filter(m => !submitted[m.id]).length;
-
+// ─── DayStrip ─────────────────────────────────────────────────────────────────
+function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: number) => void }) {
   return (
-    <div>
-      <div className="flex gap-2 mb-4">
-        {(["upcoming", "past"] as const).map(v => (
-          <button key={v} onClick={() => setView(v)}
-            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-            style={{
-              background: view === v ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${view === v ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.06)"}`,
-              color: view === v ? "#60a5fa" : "#475569",
-            }}>
-            {v === "upcoming"
-              ? `Upcoming${remaining > 0 ? ` · ${remaining} to pick` : " · All done ✓"}`
-              : `Results (${PAST_MATCHES.length})`}
+    <div className="no-scrollbar" style={{
+      display: "flex", overflowX: "auto", gap: 8,
+      padding: "10px 16px", background: T.surface,
+      borderBottom: `1px solid ${T.border}`,
+    }}>
+      {DAYS.map(({ short, day, today }) => {
+        const active = day === selected;
+        return (
+          <button key={day} onClick={() => onSelect(day)} style={{
+            flexShrink: 0, display: "flex", flexDirection: "column",
+            alignItems: "center", padding: "8px 14px", borderRadius: 14, border: "none",
+            background: active ? T.accent : today ? T.accentBg : "transparent",
+            color: active ? "white" : today ? T.accent : T.sub,
+            cursor: "pointer", transition: "all 0.15s", minWidth: 48,
+          }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {today ? "TODAY" : "Jun"}
+            </span>
+            <span style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.1 }}>{short}</span>
           </button>
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        {view === "upcoming" ? (
-          <motion.div key="upcoming" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="space-y-3">
-            {UPCOMING_MATCHES.map(m => (
-              <MatchCard key={m.id} match={m}
-                submitted={submitted[m.id] ?? null}
-                onSubmit={pred => setSubmitted(s => ({ ...s, [m.id]: pred }))} />
-            ))}
-          </motion.div>
-        ) : (
-          <motion.div key="past" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="space-y-2">
-            {PAST_MATCHES.map(m => {
-              const exact = m.myPred.home === m.home.score && m.myPred.away === m.away.score;
-              const goodOutcome = (m.myPred.home > m.myPred.away) === (m.home.score > m.away.score)
-                && (m.myPred.home !== m.myPred.away || m.home.score === m.away.score);
-              return (
-                <div key={m.id} className="glass rounded-xl p-4 flex items-center gap-3">
-                  <span className="text-[11px] w-12 flex-shrink-0" style={{ color: "#475569" }}>{m.date}</span>
-                  <div className="flex-1 flex items-center justify-center gap-2">
-                    <span className="text-xl">{m.home.flag}</span>
-                    <div className="text-center">
-                      <div className="font-mono font-bold">{m.home.score} – {m.away.score}</div>
-                      <div className="text-[10px] mt-0.5" style={{ color: "#475569" }}>
-                        Pick: {m.myPred.home}-{m.myPred.away}
-                      </div>
-                    </div>
-                    <span className="text-xl">{m.away.flag}</span>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="font-mono font-bold text-sm" style={{ color: ptColor(m.pts) }}>
-                      {m.pts > 0 ? `+${m.pts}` : "0"} pts
-                    </div>
-                    <div className="text-[10px] mt-0.5"
-                      style={{ color: exact ? "#10b981" : goodOutcome ? "#60a5fa" : "#475569" }}>
-                      {exact ? "Exact!" : goodOutcome ? "Good call" : "Missed"}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        );
+      })}
     </div>
   );
 }
 
-// ── Tab: Leaderboard ───────────────────────────────────────────────────────────
+// ─── Pick card ────────────────────────────────────────────────────────────────
+function PickCard({ match, picks, onPick }: {
+  match: Match;
+  picks: { home: ScoreVal; away: ScoreVal };
+  onPick: (h: ScoreVal, a: ScoreVal) => void;
+}) {
+  const h = picks.home; const a = picks.away;
 
-function TabLeaderboard() {
-  const totalSq = PLAYERS.reduce((a, p) => a + p.pts * p.pts, 0);
+  let potPts: number | null = null;
+  if (h !== "" && a !== "") {
+    const hn = Number(h); const an = Number(a);
+    potPts = hn > an ? calcPoints(match.home.pct)
+           : an > hn ? calcPoints(match.away.pct)
+           : calcPoints(match.draw.pct);
+  }
+
+  const inputStyle = (filled: boolean): React.CSSProperties => ({
+    width: 56, height: 56, borderRadius: 16, outline: "none",
+    border: `2px solid ${filled ? T.accent : T.border}`,
+    background: filled ? T.accentBg : T.bg,
+    fontSize: 24, fontWeight: 900, textAlign: "center", color: T.text,
+    transition: "all 0.15s",
+    boxShadow: filled ? `0 0 0 3px ${T.accent}20` : "none",
+  });
 
   return (
-    <div className="glass rounded-2xl overflow-hidden">
-      <div className="px-4 py-3 flex items-center justify-between"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-        <span className="text-xs font-semibold" style={{ color: "#475569" }}>Leaderboard</span>
-        <span className="text-xs font-mono font-bold flex items-center gap-1" style={{ color: "#10b981" }}>
-          <Lock size={9} /> ${LEAGUE.pool} locked
+    <div style={{
+      margin: "0 16px 12px", borderRadius: 20, overflow: "hidden",
+      background: T.surface, border: `1px solid ${T.border}`,
+      boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+    }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "10px 16px", background: T.bg, borderBottom: `1px solid ${T.border}`,
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          ⚽ World Cup · {match.time}
         </span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.mute }}>🔒 Locks at kickoff</span>
       </div>
-      <div>
-        {PLAYERS.map((p, i) => {
-          const est = Math.round((LEAGUE.pool * p.pts * p.pts) / totalSq);
-          const medal = p.rank <= 3 ? ["🥇","🥈","🥉"][p.rank - 1] : null;
-          return (
-            <motion.div key={p.name}
-              initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.04 }}
-              className="flex items-center gap-3 px-4 py-3"
-              style={{
-                background: p.isMe ? "rgba(59,130,246,0.06)" : "transparent",
-                borderBottom: i < PLAYERS.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none",
-              }}>
-              <div className="w-6 text-center flex-shrink-0">
-                {medal
-                  ? <span className="text-sm">{medal}</span>
-                  : <span className="text-xs font-bold" style={{ color: "#334155" }}>{p.rank}</span>}
-              </div>
-              <Avatar name={p.name} isMe={p.isMe} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold flex items-center gap-1.5">
-                  {p.name}
-                  {p.isMe && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                      style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}>
-                      you
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs font-mono mt-0.5" style={{ color: "#475569" }}>
-                  {p.pts.toLocaleString()} pts
-                </div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-sm font-mono font-bold" style={{ color: est > 0 ? "#10b981" : "#334155" }}>
-                  {est > 0 ? `~$${est}` : "—"}
-                </div>
-                <div className="text-[10px] mt-0.5 flex items-center justify-end gap-0.5"
-                  style={{ color: p.trend.startsWith("+") ? "#10b981" : "#ef4444" }}>
-                  {p.trend.startsWith("+") ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-                  {p.trend}
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-      <div className="px-4 py-2.5 text-[10px]"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.05)", color: "#334155" }}>
-        Est. payouts · score² distribution · recalculated after every match · auto-distributed at final whistle
-      </div>
-    </div>
-  );
-}
 
-// ── App Container ──────────────────────────────────────────────────────────────
-
-function AppDemo() {
-  const [tab, setTab] = useState<Tab>("league");
-
-  const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
-    { id: "league",      label: "My League",   Icon: HomeIcon },
-    { id: "predictions", label: "Predictions", Icon: Target   },
-    { id: "leaderboard", label: "Leaderboard", Icon: List     },
-  ];
-
-  return (
-    <section id="app" className="py-24 px-6">
-      <div className="max-w-2xl mx-auto">
-        <Reveal className="text-center mb-10">
-          <Tag>Live demo</Tag>
-          <h2 className="mt-5 text-4xl font-bold">See how it plays.</h2>
-          <p className="mt-3 text-base" style={{ color: "#64748b" }}>
-            Mock league · 10 players · $200 prize pool · World Cup 2026
-          </p>
-        </Reveal>
-
-        <div className="rounded-3xl overflow-hidden"
-          style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,12,22,0.8)" }}>
-          <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(59,130,246,0.2)" }}>
-                  <Zap size={11} style={{ color: "#60a5fa" }} />
-                </div>
-                <span className="font-bold text-sm">ScoreVault</span>
-              </div>
-              <Avatar name={MY_NAME} isMe />
-            </div>
-
-            <LeagueHeader />
-
-            <div className="flex gap-1 p-1 rounded-xl"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-              {TABS.map(({ id, label, Icon }) => (
-                <button key={id} onClick={() => setTab(id)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200"
-                  style={{
-                    background: tab === id ? "rgba(59,130,246,0.15)" : "transparent",
-                    color: tab === id ? "#60a5fa" : "#475569",
-                    border: tab === id ? "1px solid rgba(59,130,246,0.25)" : "1px solid transparent",
-                  }}>
-                  <Icon size={11} /> {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="p-4">
-            <AnimatePresence mode="wait">
-              <motion.div key={tab}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.22 }}>
-                {tab === "league"      && <TabLeague onGoPredict={() => setTab("predictions")} />}
-                {tab === "predictions" && <TabPredictions />}
-                {tab === "leaderboard" && <TabLeaderboard />}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Polymarket Section ────────────────────────────────────────────────────────
-
-function PoweredByPolymarket() {
-  return (
-    <section className="py-24 px-6">
-      <div className="max-w-4xl mx-auto">
-        <Reveal className="text-center mb-16">
-          <Tag>Odds engine</Tag>
-          <h2 className="mt-5 text-4xl font-bold leading-tight">
-            The odds aren't set by us.<br />
-            <span className="gradient-text">They're set by the market.</span>
-          </h2>
-          <p className="mt-4 text-base max-w-2xl mx-auto" style={{ color: "#64748b" }}>
-            ScoreVault reads live prices from Polymarket — the world's largest on-chain prediction market —
-            15 minutes before each kickoff. Those prices become the point values. Locked on-chain. Immutable.
-          </p>
-        </Reveal>
-
-        {/* Polymarket callout */}
-        <Reveal className="mb-10">
-          <div className="rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5"
-            style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.1), rgba(59,130,246,0.08))", border: "1px solid rgba(99,102,241,0.25)" }}>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(99,102,241,0.15)" }}>
-              <Hash size={22} style={{ color: "#818cf8" }} />
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-base mb-1" style={{ color: "#818cf8" }}>
-                Powered by Polymarket
-              </div>
-              <p className="text-sm leading-relaxed" style={{ color: "#64748b" }}>
-                Polymarket is a peer-to-peer prediction market running on-chain.
-                Its prices reflect the collective probability estimate of thousands of traders —
-                not a bookie's margin. When ScoreVault reads "France wins at 0.65",
-                that's 10,000 people putting real money behind that number.
-              </p>
-            </div>
-            <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs font-semibold flex-shrink-0 px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
-              style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.25)" }}>
-              polymarket.com <ExternalLink size={10} />
-            </a>
-          </div>
-        </Reveal>
-
-        {/* How the conversion works */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-8">
-          {[
-            {
-              outcome: "Home win",
-              flag: "🇫🇷",
-              team: "France",
-              polyPrice: "0.65",
-              cote: "1.54",
-              pts: "15",
-              color: "#3b82f6",
-              likely: true,
-            },
-            {
-              outcome: "Draw",
-              flag: "🤝",
-              team: "",
-              polyPrice: "0.20",
-              cote: "5.00",
-              pts: "50",
-              color: "#f59e0b",
-              likely: false,
-            },
-            {
-              outcome: "Away win",
-              flag: "🇦🇷",
-              team: "Argentina",
-              polyPrice: "0.15",
-              cote: "6.67",
-              pts: "67",
-              color: "#10b981",
-              likely: false,
-            },
-          ].map((o, i) => (
-            <Reveal key={o.outcome} delay={i * 0.08}>
-              <div className="glass rounded-2xl p-5 text-center h-full"
-                style={{ border: `1px solid ${o.color}25` }}>
-                <div className="text-2xl mb-2">{o.flag}</div>
-                <div className="text-xs font-semibold mb-3" style={{ color: "#64748b" }}>
-                  {o.outcome}{o.team ? ` · ${o.team}` : ""}
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between px-3 py-1.5 rounded-lg"
-                    style={{ background: "rgba(255,255,255,0.03)" }}>
-                    <span style={{ color: "#475569" }}>Polymarket price</span>
-                    <span className="font-mono font-bold" style={{ color: "#818cf8" }}>{o.polyPrice}</span>
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-1.5 rounded-lg"
-                    style={{ background: "rgba(255,255,255,0.03)" }}>
-                    <span style={{ color: "#475569" }}>Implied cote (1/p)</span>
-                    <span className="font-mono font-bold" style={{ color: "#94a3b8" }}>×{o.cote}</span>
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-2 rounded-xl"
-                    style={{ background: `${o.color}12`, border: `1px solid ${o.color}25` }}>
-                    <span style={{ color: o.color }}>Points if correct</span>
-                    <span className="font-mono font-bold text-base" style={{ color: o.color }}>+{o.pts} pts</span>
-                  </div>
-                </div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-
-        <Reveal delay={0.3}>
-          <p className="text-center text-sm" style={{ color: "#475569" }}>
-            France vs Argentina · Round of 16 · Odds snapshot 15 min before kickoff
-          </p>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-// ─── Scoring Engine ────────────────────────────────────────────────────────────
-
-function ScoringEngine() {
-  const RARITY = [
-    { score: "1 – 0", freq: "Most common", bonus: "+20 pts",  bar: 15,  color: "#475569" },
-    { score: "2 – 1", freq: "Common",      bonus: "+25 pts",  bar: 22,  color: "#64748b" },
-    { score: "2 – 0", freq: "Common",      bonus: "+25 pts",  bar: 22,  color: "#64748b" },
-    { score: "1 – 1", freq: "Common",      bonus: "+30 pts",  bar: 30,  color: "#3b82f6" },
-    { score: "3 – 1", freq: "Uncommon",    bonus: "+40 pts",  bar: 42,  color: "#8b5cf6" },
-    { score: "3 – 0", freq: "Rare",        bonus: "+55 pts",  bar: 58,  color: "#f59e0b" },
-    { score: "4 – 0", freq: "Very rare",   bonus: "+70 pts",  bar: 74,  color: "#ef4444" },
-    { score: "5 – 0", freq: "Exceptional", bonus: "+100 pts", bar: 100, color: "#10b981" },
-  ];
-
-  const TOURNAMENT = [
-    { label: "Tournament winner", example: "France", pts: "cote × 10", icon: "🏆" },
-    { label: "Top scorer",        example: "Mbappé", pts: "cote × 10", icon: "⚽" },
-  ];
-
-  return (
-    <section className="py-24 px-6" style={{ background: "rgba(13,17,23,0.6)" }}>
-      <div className="max-w-4xl mx-auto">
-        <Reveal className="text-center mb-16">
-          <Tag>Scoring rules</Tag>
-          <h2 className="mt-5 text-4xl font-bold leading-tight">
-            The harder the call,<br />
-            <span className="gradient-text">the bigger the reward.</span>
-          </h2>
-          <p className="mt-4 text-base max-w-xl mx-auto" style={{ color: "#64748b" }}>
-            Every match has three layers of scoring.
-            Inspired by MPG's World Cup algorithm. Calibrated by real market odds.
-          </p>
-        </Reveal>
-
-        <div className="grid md:grid-cols-3 gap-6">
-
-          {/* Layer 1 */}
-          <Reveal delay={0.05} className="md:col-span-1">
-            <div className="glass rounded-2xl p-6 h-full">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(99,102,241,0.15)" }}>
-                  <Hash size={14} style={{ color: "#818cf8" }} />
-                </div>
-                <div>
-                  <div className="text-[10px] tracking-widest uppercase font-semibold" style={{ color: "#475569" }}>
-                    Layer 1
-                  </div>
-                  <div className="text-sm font-bold">Outcome points</div>
-                </div>
-              </div>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: "#64748b" }}>
-                Pick the right outcome (home win / draw / away win)
-                and earn points proportional to how unlikely it was.
-              </p>
-              <div className="rounded-xl p-3 font-mono text-sm text-center"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <span style={{ color: "#818cf8" }}>pts</span>
-                <span style={{ color: "#475569" }}> = </span>
-                <span style={{ color: "#60a5fa" }}>(1 / polymarket_price)</span>
-                <span style={{ color: "#475569" }}> × </span>
-                <span style={{ color: "#10b981" }}>10</span>
-              </div>
-              <div className="mt-4 space-y-1.5 text-xs">
-                {[
-                  { label: "Predict favorite wins (p=0.70)", val: "14 pts", c: "#64748b" },
-                  { label: "Predict draw (p=0.20)", val: "50 pts", c: "#3b82f6" },
-                  { label: "Predict upset (p=0.10)", val: "100 pts", c: "#10b981" },
-                ].map(r => (
-                  <div key={r.label} className="flex justify-between items-center">
-                    <span style={{ color: "#475569" }}>{r.label}</span>
-                    <span className="font-mono font-bold" style={{ color: r.c }}>{r.val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Reveal>
-
-          {/* Layer 2 */}
-          <Reveal delay={0.1} className="md:col-span-1">
-            <div className="glass rounded-2xl p-6 h-full">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(245,158,11,0.15)" }}>
-                  <Flame size={14} style={{ color: "#f59e0b" }} />
-                </div>
-                <div>
-                  <div className="text-[10px] tracking-widest uppercase font-semibold" style={{ color: "#475569" }}>
-                    Layer 2
-                  </div>
-                  <div className="text-sm font-bold">Exact score bonus</div>
-                </div>
-              </div>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: "#64748b" }}>
-                Nail the exact scoreline and earn a rarity bonus — the rarer the score in World Cup history, the bigger the reward.
-              </p>
-              <div className="space-y-1.5">
-                {RARITY.map(r => (
-                  <div key={r.score} className="flex items-center gap-2">
-                    <span className="font-mono text-xs w-10 flex-shrink-0" style={{ color: "#64748b" }}>{r.score}</span>
-                    <div className="flex-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
-                      <motion.div initial={{ width: 0 }} animate={{ width: `${r.bar}%` }}
-                        transition={{ duration: 0.8, delay: 0.3 + RARITY.indexOf(r) * 0.05, ease: "easeOut" }}
-                        className="h-full rounded-full" style={{ background: r.color }} />
-                    </div>
-                    <span className="text-[10px] font-mono font-bold w-16 text-right flex-shrink-0" style={{ color: r.color }}>
-                      {r.bonus}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] mt-3" style={{ color: "#334155" }}>
-                Based on historical World Cup score frequency (1966–2022)
-              </p>
-            </div>
-          </Reveal>
-
-          {/* Layer 3 */}
-          <Reveal delay={0.15} className="md:col-span-1">
-            <div className="glass rounded-2xl p-6 h-full">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(16,185,129,0.15)" }}>
-                  <Trophy size={14} style={{ color: "#10b981" }} />
-                </div>
-                <div>
-                  <div className="text-[10px] tracking-widest uppercase font-semibold" style={{ color: "#475569" }}>
-                    Layer 3
-                  </div>
-                  <div className="text-sm font-bold">Tournament picks</div>
-                </div>
-              </div>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: "#64748b" }}>
-                Before the first match, you pick a tournament winner and a top scorer.
-                Locked on-chain at kickoff. Paid out at the final whistle.
-              </p>
-              <div className="space-y-3">
-                {TOURNAMENT.map(t => (
-                  <div key={t.label} className="glass rounded-xl p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span>{t.icon}</span>
-                      <span className="text-xs font-semibold">{t.label}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span style={{ color: "#475569" }}>e.g. {t.example}</span>
-                      <span className="font-mono font-bold" style={{ color: "#10b981" }}>{t.pts}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 rounded-xl p-3"
-                style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
-                <p className="text-xs leading-relaxed" style={{ color: "#64748b" }}>
-                  <span style={{ color: "#10b981", fontWeight: 600 }}>90 min only.</span>{" "}
-                  Scores are based on the 90-minute result. No extra time, no penalties.
-                  What's on the board at the final whistle is what counts.
-                </p>
-              </div>
-            </div>
-          </Reveal>
-        </div>
-
-        {/* Payout */}
-        <Reveal delay={0.3} className="mt-8">
-          <div className="glass rounded-2xl p-6 flex flex-col sm:flex-row items-start gap-5"
-            style={{ border: "1px solid rgba(59,130,246,0.15)" }}>
-            <div className="flex-1">
-              <div className="font-bold mb-1">Prize pool distribution: score²</div>
-              <p className="text-sm leading-relaxed" style={{ color: "#64748b" }}>
-                At the end of the tournament, the prize pool is distributed proportionally
-                to each player's total points squared. This keeps every player in the race
-                until the very last match — a strong final week can flip the entire leaderboard.
-              </p>
-            </div>
-            <div className="text-center flex-shrink-0">
-              <div className="font-mono text-sm px-4 py-2 rounded-xl"
-                style={{ background: "rgba(59,130,246,0.08)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
-                payout_i = pool × pts_i² / Σpts²
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-// ─── How It Works ──────────────────────────────────────────────────────────────
-
-function HowItWorks() {
-  const steps = [
-    {
-      emoji: "👥",
-      title: "1. Create your league",
-      desc: "Name your league, set the entry fee, invite friends with a code. Funds are locked in a smart contract the moment everyone's in.",
-      color: "#3b82f6",
-    },
-    {
-      emoji: "⚽",
-      title: "2. Pick the scores",
-      desc: "Before every match, submit your predicted scoreline. Picks lock automatically 15 minutes before kickoff. No late changes.",
-      color: "#8b5cf6",
-    },
-    {
-      emoji: "🏆",
-      title: "3. Contract pays out",
-      desc: "When the tournament ends, the smart contract distributes the prize pool proportionally to accuracy — with no one in the middle.",
-      color: "#10b981",
-    },
-  ];
-
-  return (
-    <section id="how" className="py-24 px-6">
-      <div className="max-w-3xl mx-auto">
-        <Reveal className="text-center mb-12">
-          <Tag>How it works</Tag>
-          <h2 className="mt-5 text-4xl font-bold">
-            Three steps.<br />
-            <span className="gradient-text">Then it runs itself.</span>
-          </h2>
-        </Reveal>
-
-        <div className="grid sm:grid-cols-3 gap-4">
-          {steps.map((s, i) => (
-            <Reveal key={s.title} delay={i * 0.1}>
-              <div className="glass rounded-2xl p-6 h-full glow-card">
-                <div className="text-3xl mb-4">{s.emoji}</div>
-                <div className="font-bold mb-2 text-sm" style={{ color: s.color }}>{s.title}</div>
-                <div className="text-sm leading-relaxed" style={{ color: "#64748b" }}>{s.desc}</div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-
-        <Reveal delay={0.35} className="mt-6">
-          <div className="rounded-2xl p-5"
-            style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
-            <div className="flex items-start gap-3">
-              <Shield size={15} style={{ color: "#60a5fa", flexShrink: 0, marginTop: 1 }} />
-              <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
-                <span style={{ color: "#60a5fa", fontWeight: 600 }}>Scoring:</span>{" "}
-                Exact score → <strong style={{ color: "#f1f5f9" }}>200 pts</strong> ·
-                Right outcome + correct margin → <strong style={{ color: "#f1f5f9" }}>150 pts</strong> ·
-                Right outcome → <strong style={{ color: "#f1f5f9" }}>130 pts</strong>.
-                {" "}Prize pool distributes proportionally to score² — you're in the race until the final whistle.
-              </p>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-// ─── Footer ────────────────────────────────────────────────────────────────────
-
-function Footer() {
-  return (
-    <footer className="py-12 px-6" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-      <div className="max-w-sm mx-auto text-center">
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-            style={{ background: "rgba(59,130,246,0.15)" }}>
-            <Zap size={11} style={{ color: "#60a5fa" }} />
-          </div>
-          <span className="font-bold text-sm">ScoreVault</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-            style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)" }}>
-            TESTNET
+      <div style={{ display: "flex", alignItems: "center", padding: "20px 16px", gap: 8 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 46, lineHeight: 1 }}>{match.home.flag}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.text, textAlign: "center", lineHeight: 1.2 }}>
+            {match.home.name}
           </span>
         </div>
-        <p className="text-xs" style={{ color: "#334155" }}>
-          Open beta · Ethereum testnet · No real funds · FIFA World Cup 2026
-        </p>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <input
+            type="text" inputMode="numeric" pattern="[0-9]*"
+            value={h === "" ? "" : String(h)}
+            onChange={e => {
+              const v = e.target.value.replace(/\D/g, "");
+              onPick(v === "" ? "" : Math.min(20, parseInt(v) || 0), a);
+            }}
+            placeholder="–"
+            style={inputStyle(h !== "")}
+          />
+          <span style={{ fontSize: 22, fontWeight: 900, color: T.mute }}>:</span>
+          <input
+            type="text" inputMode="numeric" pattern="[0-9]*"
+            value={a === "" ? "" : String(a)}
+            onChange={e => {
+              const v = e.target.value.replace(/\D/g, "");
+              onPick(h, v === "" ? "" : Math.min(20, parseInt(v) || 0));
+            }}
+            placeholder="–"
+            style={inputStyle(a !== "")}
+          />
+        </div>
+
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 46, lineHeight: 1 }}>{match.away.flag}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.text, textAlign: "center", lineHeight: 1.2 }}>
+            {match.away.name}
+          </span>
+        </div>
       </div>
-    </footer>
+
+      {potPts !== null && (
+        <div style={{
+          padding: "10px 16px", borderTop: `1px solid ${T.border}`,
+          background: T.accentBg, display: "flex", alignItems: "center",
+          justifyContent: "center", gap: 8,
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>
+            🎯 {potPts} pts if your pick is right
+          </span>
+          <span style={{ fontSize: 11, color: T.sub }}>· ×3 for exact score</span>
+        </div>
+      )}
+    </div>
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────────
+// ─── Picks tab ────────────────────────────────────────────────────────────────
+function PicksTab({ user }: { user: { name: string; avatar: string } }) {
+  const [day, setDay] = useState(18);
+  const [picks, setPicks] = useState<Record<string, { home: ScoreVal; away: ScoreVal }>>({});
+  const [saved, setSaved] = useState(false);
 
-export default function Home() {
+  const dayMatches = MATCHES.filter(m => m.day === day);
+  const filled = dayMatches.filter(m => {
+    const p = picks[m.id];
+    return p && p.home !== "" && p.away !== "";
+  }).length;
+
+  function setPick(id: string, h: ScoreVal, a: ScoreVal) {
+    setPicks(prev => ({ ...prev, [id]: { home: h, away: a } }));
+  }
+
+  function save() {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
   return (
-    <main>
-      <Nav />
-      <Hero />
-      <OnChain />
-      <PoweredByPolymarket />
-      <ScoringEngine />
-      <AppDemo />
-      <HowItWorks />
-      <Footer />
-    </main>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* User bar */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 16px", background: T.surface, borderBottom: `1px solid ${T.border}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 12, background: T.accentBg,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 20, border: `1.5px solid ${T.accent}44`,
+          }}>{user.avatar}</div>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text }}>{user.name}</p>
+            <p style={{ margin: 0, fontSize: 11, color: T.sub }}>
+              {filled} / {dayMatches.length} picks today
+            </p>
+          </div>
+        </div>
+        <div style={{
+          padding: "6px 14px", borderRadius: 20,
+          background: T.goldBg, border: `1px solid ${T.gold}44`,
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>⚽ WC 2026</span>
+        </div>
+      </div>
+
+      <DayStrip selected={day} onSelect={setDay} />
+
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", paddingTop: 12, background: T.bg }}>
+        {dayMatches.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 8 }}>
+            <span style={{ fontSize: 48 }}>⚽</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: T.sub }}>No matches today</span>
+          </div>
+        ) : dayMatches.map(m => (
+          <PickCard key={m.id} match={m}
+            picks={picks[m.id] ?? { home: "", away: "" }}
+            onPick={(h, a) => setPick(m.id, h, a)} />
+        ))}
+        <div style={{ height: 12 }} />
+      </div>
+
+      {/* CTA */}
+      <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}` }}>
+        <button onClick={save} disabled={filled === 0} style={{
+          width: "100%", padding: "17px", borderRadius: 16, border: "none",
+          background: saved ? T.green : filled > 0 ? T.accent : T.border,
+          color: "white", fontSize: 15, fontWeight: 700,
+          cursor: filled > 0 ? "pointer" : "default",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          transition: "all 0.2s",
+          boxShadow: filled > 0 ? `0 4px 20px ${T.accent}50` : "none",
+        }}>
+          {saved
+            ? <><Check size={16} /> Picks saved!</>
+            : filled === dayMatches.length && dayMatches.length > 0
+              ? `🔒 Lock all ${filled} picks`
+              : filled > 0
+                ? `Lock ${filled} / ${dayMatches.length} picks`
+                : "Enter your picks above"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Results tab ──────────────────────────────────────────────────────────────
+function ResultsTab() {
+  const [day, setDay] = useState(17);
+  const dayResults = PAST.filter(m => m.day === day);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <DayStrip selected={day} onSelect={setDay} />
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", paddingTop: 12, background: T.bg }}>
+        {dayResults.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 8 }}>
+            <span style={{ fontSize: 48 }}>⏳</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: T.sub }}>No results yet</span>
+          </div>
+        ) : dayResults.map(m => {
+          const homeWon = m.home.score > m.away.score;
+          const awayWon = m.away.score > m.home.score;
+          const isDraw  = !homeWon && !awayWon;
+          const exact   = !!m.myPick && m.myPick.home === m.home.score && m.myPick.away === m.away.score;
+          const correct = !exact && !!m.myPick && (
+            (homeWon && m.myPick.home > m.myPick.away) ||
+            (awayWon && m.myPick.away > m.myPick.home) ||
+            (isDraw  && m.myPick.home === m.myPick.away)
+          );
+          const winnerPct = homeWon ? m.home.pct : awayWon ? m.away.pct : m.draw.pct;
+          const pts = exact ? calcPoints(winnerPct) * 3 : correct ? calcPoints(winnerPct) : 0;
+
+          return (
+            <div key={m.id} style={{
+              margin: "0 16px 12px", borderRadius: 20, overflow: "hidden",
+              background: T.surface, border: `1px solid ${T.border}`,
+              boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+            }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "10px 16px", background: T.bg, borderBottom: `1px solid ${T.border}`,
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  ⚽ WC 2026 · {m.date}
+                </span>
+                {pts > 0 && (
+                  <span style={{ fontSize: 13, fontWeight: 800, color: exact ? T.gold : T.green }}>
+                    +{pts} pts {exact ? "🎯" : "✓"}
+                  </span>
+                )}
+                {pts === 0 && m.myPick && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.mute }}>0 pts</span>
+                )}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", padding: "20px 16px", gap: 10 }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 42, lineHeight: 1 }}>{m.home.flag}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.text, textAlign: "center" }}>{m.home.name}</span>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <div style={{
+                      width: 50, height: 50, borderRadius: 14,
+                      background: homeWon ? `${T.green}18` : T.bg,
+                      border: `2px solid ${homeWon ? T.green : T.border}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 22, fontWeight: 900, color: T.text,
+                    }}>{m.home.score}</div>
+                    <span style={{ fontSize: 20, fontWeight: 900, color: T.mute }}>:</span>
+                    <div style={{
+                      width: 50, height: 50, borderRadius: 14,
+                      background: awayWon ? `${T.green}18` : T.bg,
+                      border: `2px solid ${awayWon ? T.green : T.border}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 22, fontWeight: 900, color: T.text,
+                    }}>{m.away.score}</div>
+                  </div>
+                  {m.myPick && (
+                    <div style={{
+                      padding: "4px 12px", borderRadius: 20,
+                      background: exact ? T.goldBg : correct ? T.accentBg : T.redBg,
+                      border: `1px solid ${exact ? T.gold + "55" : correct ? T.accent + "55" : T.red + "33"}`,
+                    }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700,
+                        color: exact ? T.gold : correct ? T.accent : T.red,
+                      }}>
+                        {exact ? "🎯 Exact!" : correct ? "✓ Correct" : `✗ ${m.myPick.home}–${m.myPick.away}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 42, lineHeight: 1 }}>{m.away.flag}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.text, textAlign: "center" }}>{m.away.name}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ height: 12 }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Leaderboard tab ──────────────────────────────────────────────────────────
+function LeaderboardTab({ user }: { user: { name: string; avatar: string } }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.bg }}>
+      {/* GW selector */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 16px", background: T.surface, borderBottom: `1px solid ${T.border}`,
+      }}>
+        <button style={{
+          width: 34, height: 34, borderRadius: 10, cursor: "pointer",
+          border: `1px solid ${T.border}`, background: T.bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}><ChevronLeft size={16} color={T.sub} /></button>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.text }}>Matchday 1</p>
+          <p style={{ margin: 0, fontSize: 11, color: T.sub }}>Jun 17–18 · 9 matchdays total</p>
+        </div>
+        <button style={{
+          width: 34, height: 34, borderRadius: 10, cursor: "pointer",
+          border: `1px solid ${T.border}`, background: T.bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}><ChevronRight size={16} color={T.sub} /></button>
+      </div>
+
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
+        {/* Podium */}
+        <div style={{ padding: "24px 16px 12px", display: "flex", justifyContent: "center", gap: 8, alignItems: "flex-end" }}>
+          {/* 2nd */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 30 }}>{MOCK_BOARD[1].avatar}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{MOCK_BOARD[1].name}</span>
+            <div style={{
+              width: 84, height: 64, borderRadius: "14px 14px 0 0",
+              background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <div style={{ textAlign: "center" }}>
+                <p style={{ margin: 0, fontSize: 11, color: T.sub, fontWeight: 700 }}>2nd</p>
+                <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: T.text }}>{MOCK_BOARD[1].pts}</p>
+                <p style={{ margin: 0, fontSize: 9, color: T.mute }}>pts</p>
+              </div>
+            </div>
+          </div>
+          {/* 1st */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>👑</span>
+            <span style={{ fontSize: 36 }}>{MOCK_BOARD[0].avatar}</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>{MOCK_BOARD[0].name}</span>
+            <div style={{
+              width: 84, height: 88, borderRadius: "14px 14px 0 0",
+              background: `linear-gradient(135deg, ${T.gold}, #D97706)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <div style={{ textAlign: "center" }}>
+                <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>1st</p>
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "white" }}>{MOCK_BOARD[0].pts}</p>
+                <p style={{ margin: 0, fontSize: 9, color: "rgba(255,255,255,0.8)" }}>pts</p>
+              </div>
+            </div>
+          </div>
+          {/* 3rd */}
+          {MOCK_BOARD[2] && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 30 }}>{MOCK_BOARD[2].avatar}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{MOCK_BOARD[2].name}</span>
+              <div style={{
+                width: 84, height: 46, borderRadius: "14px 14px 0 0",
+                background: "#E8D5BC", display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ margin: 0, fontSize: 11, color: "#8B7355", fontWeight: 700 }}>3rd</p>
+                  <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: T.text }}>{MOCK_BOARD[2].pts}</p>
+                  <p style={{ margin: 0, fontSize: 9, color: T.mute }}>pts</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Full table */}
+        <div style={{ margin: "0 16px 16px", borderRadius: 20, overflow: "hidden", background: T.surface, border: `1px solid ${T.border}` }}>
+          <div style={{
+            display: "flex", padding: "10px 16px",
+            borderBottom: `1px solid ${T.border}`, background: T.bg,
+          }}>
+            <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: T.mute, textTransform: "uppercase", letterSpacing: "0.05em" }}>Player</span>
+            <span style={{ width: 56, textAlign: "center", fontSize: 10, fontWeight: 700, color: T.mute, textTransform: "uppercase" }}>Correct</span>
+            <span style={{ width: 56, textAlign: "right", fontSize: 10, fontWeight: 700, color: T.gold, textTransform: "uppercase" }}>Points</span>
+          </div>
+          {MOCK_BOARD.map((p, i) => {
+            const isMe = p.name === user.name;
+            return (
+              <div key={p.name} style={{
+                display: "flex", alignItems: "center", padding: "14px 16px",
+                borderBottom: i < MOCK_BOARD.length - 1 ? `1px solid ${T.border}` : "none",
+                background: isMe ? `${T.accent}08` : "transparent",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                  <span style={{ fontSize: 14, fontWeight: 900, width: 18, color: i === 0 ? T.gold : T.mute }}>{i + 1}</span>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 12, fontSize: 22,
+                    background: isMe ? T.accentBg : T.bg,
+                    border: `1.5px solid ${isMe ? T.accent : T.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{p.avatar}</div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.text }}>
+                      {p.name}
+                      {isMe && <span style={{ fontSize: 11, color: T.accent, fontWeight: 700, marginLeft: 6 }}>· you</span>}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 11, color: T.sub }}>{p.exact} exact · {p.correct} correct</p>
+                  </div>
+                </div>
+                <span style={{ width: 56, textAlign: "center", fontSize: 13, fontWeight: 700, color: T.mute }}>{p.correct}</span>
+                <span style={{ width: 56, textAlign: "right", fontSize: 20, fontWeight: 900, color: T.gold }}>{p.pts}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── League tab ───────────────────────────────────────────────────────────────
+function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
+  const [copied, setCopied] = useState(false);
+  const [email, setEmail] = useState("");
+  const [waitlist, setWaitlist] = useState<"idle" | "loading" | "done">("idle");
+
+  async function submitEmail() {
+    if (!email.includes("@")) return;
+    setWaitlist("loading");
+    try {
+      await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch {}
+    setWaitlist("done");
+  }
+
+  function share() {
+    const text = `Join my WC2026 picks league! Code: ${LEAGUE.code}`;
+    if (navigator.share) {
+      navigator.share({ title: "ScoreVault", text, url: window.location.href }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  return (
+    <div className="no-scrollbar" style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", background: T.bg }}>
+      {/* League hero */}
+      <div style={{
+        padding: "24px 16px 20px", background: T.surface,
+        borderBottom: `1px solid ${T.border}`,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+      }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 22,
+          background: T.goldBg, border: `2px solid ${T.gold}44`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 34, boxShadow: `0 4px 24px ${T.gold}30`,
+        }}>🏆</div>
+        <div style={{ textAlign: "center" }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: T.text }}>{LEAGUE.name}</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: T.sub }}>
+            {MOCK_BOARD.length} friends · WC 2026 · 9 matchdays
+          </p>
+        </div>
+
+        {/* League code */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "14px 18px", borderRadius: 16, width: "100%",
+          background: T.bg, border: `1.5px dashed ${T.border}`,
+          boxSizing: "border-box",
+        }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: T.mute, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+              League code
+            </p>
+            <p style={{ margin: 0, fontSize: 20, fontWeight: 900, color: T.text, letterSpacing: "0.04em" }}>
+              {LEAGUE.code}
+            </p>
+          </div>
+          <button onClick={share} style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "10px 18px", borderRadius: 12, cursor: "pointer",
+            background: copied ? T.accentBg : T.surface,
+            border: `1.5px solid ${copied ? T.accent : T.border}`,
+            color: copied ? T.accent : T.sub,
+            fontSize: 13, fontWeight: 700, transition: "all 0.15s",
+          }}>
+            {copied ? <Check size={14} /> : <Share2 size={14} />}
+            {copied ? "Copied!" : "Invite"}
+          </button>
+        </div>
+      </div>
+
+      {/* Members */}
+      <div style={{ padding: "16px 16px 0" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: T.mute, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Members
+        </p>
+        {MOCK_BOARD.map((p, i) => {
+          const isMe = p.name === user.name;
+          return (
+            <div key={p.name} style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "12px 16px", borderRadius: 16, marginBottom: 8,
+              background: T.surface,
+              border: `1.5px solid ${isMe ? T.accent + "55" : T.border}`,
+            }}>
+              <span style={{
+                fontSize: 13, fontWeight: 900, width: 18, textAlign: "center",
+                color: i === 0 ? T.gold : T.mute,
+              }}>{i + 1}</span>
+              <div style={{
+                width: 40, height: 40, borderRadius: 14, fontSize: 22,
+                background: isMe ? T.accentBg : T.bg,
+                border: `1.5px solid ${isMe ? T.accent : T.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{p.avatar}</div>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.text }}>
+                  {p.name}
+                  {isMe && <span style={{ fontSize: 11, color: T.accent, fontWeight: 700, marginLeft: 6 }}>· you</span>}
+                </p>
+              </div>
+              <span style={{ fontSize: 17, fontWeight: 900, color: T.gold }}>{p.pts} pts</span>
+            </div>
+          );
+        })}
+
+        <button onClick={share} style={{
+          width: "100%", padding: "15px", borderRadius: 14, cursor: "pointer",
+          border: `2px dashed ${T.border}`, background: "transparent",
+          color: T.sub, fontSize: 14, fontWeight: 700,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          <Plus size={18} color={T.sub} /> Invite a friend
+        </button>
+      </div>
+
+      {/* Love money CTA */}
+      <div style={{
+        margin: "16px 16px 28px", padding: "22px 20px", borderRadius: 22,
+        background: "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
+        boxShadow: "0 6px 30px rgba(0,0,0,0.18)",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+          <span style={{ fontSize: 28 }}>🏟️</span>
+          <div>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "white", lineHeight: 1.2 }}>
+              2 spots at the NYC Final
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: 12, fontWeight: 600, color: T.gold }}>
+              Winner takes the pot — for real
+            </p>
+          </div>
+        </div>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>
+          Real money leagues dropping soon. Lock your spot now — your crew is probably already on the list.
+        </p>
+        {waitlist === "done" ? (
+          <div style={{
+            padding: "14px", borderRadius: 14,
+            background: T.accentBg, border: `1px solid ${T.accent}44`,
+            textAlign: "center",
+          }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>
+              ✓ You&apos;re on the list — we&apos;ll hit you first
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && submitEmail()}
+              style={{
+                flex: 1, padding: "14px 16px", borderRadius: 12, border: "none",
+                background: "rgba(255,255,255,0.08)", color: "white",
+                fontSize: 14, outline: "none",
+              }}
+            />
+            <button
+              onClick={submitEmail}
+              disabled={!email.includes("@") || waitlist === "loading"}
+              style={{
+                padding: "14px 18px", borderRadius: 12, border: "none",
+                background: email.includes("@") ? T.accent : "rgba(255,255,255,0.1)",
+                color: "white", fontSize: 14, fontWeight: 700,
+                cursor: email.includes("@") ? "pointer" : "default",
+                whiteSpace: "nowrap", flexShrink: 0,
+                transition: "all 0.15s",
+              }}>
+              {waitlist === "loading" ? "…" : "Count me in"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Bottom nav ───────────────────────────────────────────────────────────────
+const NAV: { id: Tab; label: string; emoji: string }[] = [
+  { id: "picks",       label: "Picks",    emoji: "⚽" },
+  { id: "results",     label: "Results",  emoji: "📋" },
+  { id: "leaderboard", label: "Rankings", emoji: "🏆" },
+  { id: "league",      label: "My League",emoji: "👥" },
+];
+
+// ─── App root ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
+  const [tab, setTab]   = useState<Tab>("picks");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("sv_user");
+      if (stored) setUser(JSON.parse(stored));
+    } catch {}
+    setReady(true);
+  }, []);
+
+  function onboard(name: string, avatar: string) {
+    const u = { name, avatar };
+    localStorage.setItem("sv_user", JSON.stringify(u));
+    setUser(u);
+  }
+
+  if (!ready) return null;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0F172A" }}>
+      <div style={{
+        position: "relative", display: "flex", flexDirection: "column",
+        width: "min(100vw, 430px)", height: "min(100dvh, 932px)",
+        background: T.bg, overflow: "hidden",
+      }}>
+        {!user ? <Onboarding onDone={onboard} /> : (
+          <>
+            {/* Top bar */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "12px 16px", background: T.surface, borderBottom: `1px solid ${T.border}`,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: 10,
+                  background: T.accent, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 18,
+                }}>⚽</div>
+                <span style={{ fontSize: 17, fontWeight: 900, color: T.text }}>ScoreVault</span>
+              </div>
+              <div style={{
+                padding: "6px 14px", borderRadius: 20,
+                background: T.accentBg, border: `1px solid ${T.accent}33`,
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.accent }}>WC 2026 · MD1</span>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+              {tab === "picks"       && <PicksTab user={user} />}
+              {tab === "results"     && <ResultsTab />}
+              {tab === "leaderboard" && <LeaderboardTab user={user} />}
+              {tab === "league"      && <LeagueTab user={user} />}
+            </div>
+
+            {/* Bottom nav */}
+            <div style={{
+              display: "flex", background: T.surface, borderTop: `1px solid ${T.border}`,
+              paddingBottom: "env(safe-area-inset-bottom)",
+            }}>
+              {NAV.map(item => {
+                const active = item.id === tab;
+                return (
+                  <button key={item.id} onClick={() => setTab(item.id)} style={{
+                    flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+                    padding: "10px 0 8px", border: "none", background: "transparent",
+                    cursor: "pointer", gap: 3,
+                    borderTop: `2.5px solid ${active ? T.accent : "transparent"}`,
+                    transition: "all 0.15s",
+                  }}>
+                    <span style={{ fontSize: 22, lineHeight: 1 }}>{item.emoji}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+                      letterSpacing: "0.04em", color: active ? T.accent : T.mute,
+                    }}>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
