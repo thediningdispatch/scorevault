@@ -1,47 +1,39 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Trophy, Users, Share2, Check, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 
-// ─── Theme: MPP × Revolut ─────────────────────────────────────────────────────
-const T = {
-  bg:       "#F4F6F9",
-  surface:  "#FFFFFF",
-  border:   "#E8ECF2",
-  accent:   "#10B981",
-  accentBg: "#ECFDF5",
-  accentDk: "#059669",
-  gold:     "#F59E0B",
-  goldBg:   "#FFFBEB",
-  text:     "#0F172A",
-  sub:      "#64748B",
-  mute:     "#94A3B8",
-  green:    "#10B981",
-  red:      "#EF4444",
-  redBg:    "#FEF2F2",
-  blue:     "#3B82F6",
+// ─── MPP exact palette ────────────────────────────────────────────────────────
+const M = {
+  bg:     "#111111",
+  card:   "#1C1C1E",
+  border: "#2C2C2E",
+  gold:   "#C8A84B",
+  goldBg: "#2A2214",
+  nav:    "#B08A28",
+  text:   "#FFFFFF",
+  sub:    "#8E8E93",
+  mute:   "#3A3A3C",
+  pill:   "#2E2E30",
+  green:  "#32D74B",
+  red:    "#FF453A",
+  pink:   "#FF375F",
 };
 
-// ─── Points formula ───────────────────────────────────────────────────────────
-// Calibrated: cote 1.3 → 30 pts, cote 4.0 → 120 pts
-// Exact score = ×3 bonus
-function calcPoints(pct: number): number {
-  const odds = 100 / Math.max(1, pct);
-  return Math.round(22 * Math.pow(odds, 1.23));
-}
+// ─── Points formula (same as before, hidden from user) ────────────────────────
+function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pct), 1.23)); }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ScoreVal = number | "";
 type Tab = "picks" | "results" | "leaderboard" | "league";
 
 interface Match {
-  id: string; day: number; time: string;
+  id: string; day: number; time: string; gw: string;
   home: { name: string; flag: string; pct: number };
   draw: { pct: number };
   away: { name: string; flag: string; pct: number };
 }
-
 interface PastMatch {
-  id: string; day: number; date: string;
+  id: string; day: number; date: string; gw: string;
   home: { name: string; flag: string; score: number; pct: number };
   draw: { pct: number };
   away: { name: string; flag: string; score: number; pct: number };
@@ -50,177 +42,233 @@ interface PastMatch {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const MATCHES: Match[] = [
-  { id: "gha-pan", day: 18, time: "3:00 PM ET",
-    home: { name: "Ghana",       flag: "🇬🇭", pct: 56 },
-    draw: { pct: 26 },
+  { id: "gha-pan", day: 18, time: "3:00 PM ET",  gw: "GW.1",
+    home: { name: "Ghana",       flag: "🇬🇭", pct: 56 }, draw: { pct: 26 },
     away: { name: "Panama",      flag: "🇵🇦", pct: 18 } },
-  { id: "uzb-col", day: 18, time: "6:00 PM ET",
-    home: { name: "Uzbekistan",  flag: "🇺🇿", pct: 8  },
-    draw: { pct: 22 },
+  { id: "uzb-col", day: 18, time: "6:00 PM ET",  gw: "GW.1",
+    home: { name: "Uzbekistan",  flag: "🇺🇿", pct: 8  }, draw: { pct: 22 },
     away: { name: "Colombia",    flag: "🇨🇴", pct: 70 } },
-  { id: "cze-rsa", day: 18, time: "9:00 PM ET",
-    home: { name: "Czechia",     flag: "🇨🇿", pct: 52 },
-    draw: { pct: 28 },
+  { id: "cze-rsa", day: 18, time: "9:00 PM ET",  gw: "GW.1",
+    home: { name: "Czechia",     flag: "🇨🇿", pct: 52 }, draw: { pct: 28 },
     away: { name: "South Africa",flag: "🇿🇦", pct: 20 } },
-  { id: "usa-bol", day: 19, time: "12:00 PM ET",
-    home: { name: "USA",         flag: "🇺🇸", pct: 72 },
-    draw: { pct: 18 },
+  { id: "usa-bol", day: 19, time: "12:00 PM ET", gw: "GW.1",
+    home: { name: "USA",         flag: "🇺🇸", pct: 72 }, draw: { pct: 18 },
     away: { name: "Bolivia",     flag: "🇧🇴", pct: 10 } },
-  { id: "ecu-ven", day: 19, time: "3:00 PM ET",
-    home: { name: "Ecuador",     flag: "🇪🇨", pct: 48 },
-    draw: { pct: 28 },
+  { id: "ecu-ven", day: 19, time: "3:00 PM ET",  gw: "GW.1",
+    home: { name: "Ecuador",     flag: "🇪🇨", pct: 48 }, draw: { pct: 28 },
     away: { name: "Venezuela",   flag: "🇻🇪", pct: 24 } },
-  { id: "fra-aut", day: 20, time: "6:00 PM ET",
-    home: { name: "France",      flag: "🇫🇷", pct: 68 },
-    draw: { pct: 20 },
+  { id: "mex-cam", day: 19, time: "6:00 PM ET",  gw: "GW.1",
+    home: { name: "Mexico",      flag: "🇲🇽", pct: 65 }, draw: { pct: 22 },
+    away: { name: "Cameroon",    flag: "🇨🇲", pct: 13 } },
+  { id: "fra-aut", day: 20, time: "3:00 PM ET",  gw: "GW.2",
+    home: { name: "France",      flag: "🇫🇷", pct: 68 }, draw: { pct: 20 },
     away: { name: "Austria",     flag: "🇦🇹", pct: 12 } },
-  { id: "bra-arg", day: 20, time: "9:00 PM ET",
-    home: { name: "Brazil",      flag: "🇧🇷", pct: 38 },
-    draw: { pct: 26 },
+  { id: "bra-arg", day: 20, time: "9:00 PM ET",  gw: "GW.2",
+    home: { name: "Brazil",      flag: "🇧🇷", pct: 38 }, draw: { pct: 26 },
     away: { name: "Argentina",   flag: "🇦🇷", pct: 36 } },
+  { id: "eng-irl", day: 21, time: "3:00 PM ET",  gw: "GW.2",
+    home: { name: "England",     flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pct: 62 }, draw: { pct: 22 },
+    away: { name: "Ireland",     flag: "🇮🇪", pct: 16 } },
+  { id: "esp-mar", day: 21, time: "6:00 PM ET",  gw: "GW.2",
+    home: { name: "Spain",       flag: "🇪🇸", pct: 58 }, draw: { pct: 24 },
+    away: { name: "Morocco",     flag: "🇲🇦", pct: 18 } },
 ];
 
 const PAST: PastMatch[] = [
-  { id: "mex-rsa", day: 17, date: "Jun 17",
-    home: { name: "Mexico",      flag: "🇲🇽", score: 2, pct: 58 },
-    draw: { pct: 24 },
-    away: { name: "South Africa",flag: "🇿🇦", score: 0, pct: 18 },
-    myPick: { home: 2, away: 0 } },
-  { id: "kor-cze", day: 17, date: "Jun 17",
-    home: { name: "South Korea", flag: "🇰🇷", score: 2, pct: 44 },
-    draw: { pct: 28 },
-    away: { name: "Czechia",     flag: "🇨🇿", score: 1, pct: 28 },
-    myPick: { home: 2, away: 1 } },
-  { id: "can-bih", day: 17, date: "Jun 17",
-    home: { name: "Canada",      flag: "🇨🇦", score: 1, pct: 52 },
-    draw: { pct: 26 },
-    away: { name: "Bosnia",      flag: "🇧🇦", score: 1, pct: 22 },
-    myPick: { home: 1, away: 0 } },
+  { id: "mex-rsa", day: 17, date: "Jun 17", gw: "GW.1",
+    home: { name: "Mexico",      flag: "🇲🇽", score: 2, pct: 58 }, draw: { pct: 24 },
+    away: { name: "South Africa",flag: "🇿🇦", score: 0, pct: 18 }, myPick: { home: 2, away: 0 } },
+  { id: "kor-cze", day: 17, date: "Jun 17", gw: "GW.1",
+    home: { name: "South Korea", flag: "🇰🇷", score: 2, pct: 44 }, draw: { pct: 28 },
+    away: { name: "Czechia",     flag: "🇨🇿", score: 1, pct: 28 }, myPick: { home: 2, away: 1 } },
+  { id: "can-bih", day: 17, date: "Jun 17", gw: "GW.1",
+    home: { name: "Canada",      flag: "🇨🇦", score: 1, pct: 52 }, draw: { pct: 26 },
+    away: { name: "Bosnia",      flag: "🇧🇦", score: 1, pct: 22 }, myPick: { home: 1, away: 0 } },
 ];
 
 const DAYS = [
-  { short: "17", label: "Jun 17", day: 17 },
-  { short: "18", label: "Jun 18", day: 18, today: true },
-  { short: "19", label: "Jun 19", day: 19 },
-  { short: "20", label: "Jun 20", day: 20 },
-  { short: "21", label: "Jun 21", day: 21 },
-  { short: "22", label: "Jun 22", day: 22 },
-  { short: "23", label: "Jun 23", day: 23 },
+  { short: "Thu", num: "17", day: 17 },
+  { short: "Fri", num: "18", day: 18, today: true },
+  { short: "Sat", num: "19", day: 19 },
+  { short: "Sun", num: "20", day: 20 },
+  { short: "Mon", num: "21", day: 21 },
+  { short: "Tue", num: "22", day: 22 },
+  { short: "Wed", num: "23", day: 23 },
 ];
 
-const LEAGUE = { name: "WC2026 Squad", code: "SV-2026" };
+const DAY_LABELS: Record<number, string> = {
+  17: "Wednesday 17 June",
+  18: "Thursday 18 June",
+  19: "Friday 19 June",
+  20: "Saturday 20 June",
+  21: "Sunday 21 June",
+  22: "Monday 22 June",
+};
 
 const MOCK_BOARD = [
-  { name: "Vianney",   avatar: "🦁", pts: 480, exact: 2, correct: 3 },
-  { name: "Jules",     avatar: "🐯", pts: 280, exact: 1, correct: 2 },
-  { name: "Guillaume", avatar: "🦊", pts: 120, exact: 0, correct: 1 },
+  { name: "Vianney",   avatar: "🦁", pts: 480, good: 3, exact: 2 },
+  { name: "Jules",     avatar: "🐯", pts: 280, good: 2, exact: 1 },
+  { name: "Guillaume", avatar: "🦊", pts: 120, good: 1, exact: 0 },
 ];
 
 const AVATARS = ["⚽", "🦁", "🐯", "🦊", "🐺", "🦅", "🐉", "🦄"];
+const LEAGUE_CODE = "SV-2026";
 
-// ─── Onboarding ───────────────────────────────────────────────────────────────
-function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void }) {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState("");
-  const [avatar, setAvatar] = useState(AVATARS[0]);
-  const valid = name.trim().length >= 2;
-
+// ─── Circular flag ─────────────────────────────────────────────────────────────
+function CircleFlag({ flag, size = 76 }: { flag: string; size?: number }) {
   return (
     <div style={{
-      height: "100%", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center",
-      padding: "32px 24px", background: T.surface,
+      width: size, height: size, borderRadius: "50%",
+      background: "#2C2C2E",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      overflow: "hidden", flexShrink: 0,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
     }}>
-      <div style={{
-        width: 80, height: 80, borderRadius: 24, marginBottom: 20,
-        background: T.accent, display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 38, boxShadow: `0 8px 32px ${T.accent}50`,
-      }}>⚽</div>
-
-      <h1 style={{ fontSize: 28, fontWeight: 900, color: T.text, margin: "0 0 8px", textAlign: "center" }}>
-        ScoreVault
-      </h1>
-      <p style={{ fontSize: 14, color: T.sub, margin: "0 0 40px", textAlign: "center", lineHeight: 1.6 }}>
-        {step === 1
-          ? "Pick scores. Climb the board.\nChallenge your crew."
-          : `Nice, ${name.trim()}! Now pick your avatar 👇`}
-      </p>
-
-      {step === 1 ? (
-        <>
-          <label style={{
-            width: "100%", display: "block", marginBottom: 8,
-            fontSize: 11, fontWeight: 700, color: T.mute,
-            textTransform: "uppercase", letterSpacing: "0.08em",
-          }}>Your name</label>
-          <input
-            type="text" autoFocus placeholder="e.g. Jules"
-            value={name} onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
-            style={{
-              width: "100%", padding: "16px 20px", marginBottom: 16,
-              borderRadius: 16, outline: "none", boxSizing: "border-box",
-              border: `2px solid ${valid ? T.accent : T.border}`,
-              background: T.bg, fontSize: 20, fontWeight: 700,
-              color: T.text, transition: "border-color 0.2s",
-            }}
-          />
-          <button onClick={() => valid && setStep(2)} disabled={!valid} style={{
-            width: "100%", padding: "18px", borderRadius: 16, border: "none",
-            background: valid ? T.accent : T.mute, color: "white",
-            fontSize: 16, fontWeight: 700, cursor: valid ? "pointer" : "default",
-            boxShadow: valid ? `0 4px 20px ${T.accent}50` : "none",
-            transition: "all 0.2s",
-          }}>Continue →</button>
-        </>
-      ) : (
-        <>
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 12, width: "100%", marginBottom: 24,
-          }}>
-            {AVATARS.map(a => (
-              <button key={a} onClick={() => setAvatar(a)} style={{
-                fontSize: 36, padding: "16px 0", borderRadius: 16, cursor: "pointer",
-                background: avatar === a ? T.accentBg : T.bg,
-                border: `2px solid ${avatar === a ? T.accent : T.border}`,
-                transition: "all 0.15s",
-              }}>{a}</button>
-            ))}
-          </div>
-          <button onClick={() => onDone(name.trim(), avatar)} style={{
-            width: "100%", padding: "18px", borderRadius: 16, border: "none",
-            background: T.accent, color: "white", fontSize: 16, fontWeight: 700,
-            cursor: "pointer", boxShadow: `0 4px 20px ${T.accent}50`,
-          }}>Let&apos;s play! 🚀</button>
-        </>
-      )}
+      <span style={{ fontSize: size * 0.72, lineHeight: 1, display: "block" }}>{flag}</span>
     </div>
   );
 }
 
-// ─── DayStrip ─────────────────────────────────────────────────────────────────
+// ─── Score input ──────────────────────────────────────────────────────────────
+function ScoreInput({ value, onChange }: { value: ScoreVal; onChange: (v: ScoreVal) => void }) {
+  const filled = value !== "";
+  return (
+    <input
+      type="text" inputMode="numeric" pattern="[0-9]*"
+      value={value === "" ? "" : String(value)}
+      onChange={e => {
+        const v = e.target.value.replace(/\D/g, "");
+        onChange(v === "" ? "" : Math.min(20, parseInt(v) || 0));
+      }}
+      placeholder="–"
+      style={{
+        width: 52, height: 52, borderRadius: 10,
+        background: filled ? "#3D3420" : M.mute,
+        border: `2px solid ${filled ? M.gold : "transparent"}`,
+        color: filled ? M.gold : M.sub,
+        fontSize: 22, fontWeight: 900, textAlign: "center",
+        outline: "none", transition: "all 0.15s",
+      }}
+    />
+  );
+}
+
+// ─── Match pick card ──────────────────────────────────────────────────────────
+function MatchCard({ match, picks, onPick }: {
+  match: Match;
+  picks: { home: ScoreVal; away: ScoreVal };
+  onPick: (h: ScoreVal, a: ScoreVal) => void;
+}) {
+  const h = picks.home; const a = picks.away;
+  const ptsH = pts(match.home.pct);
+  const ptsD = pts(match.draw.pct);
+  const ptsA = pts(match.away.pct);
+
+  // Which outcome the user is currently predicting
+  let activePts: number | null = null;
+  if (h !== "" && a !== "") {
+    const hn = Number(h); const an = Number(a);
+    activePts = hn > an ? ptsH : an > hn ? ptsA : ptsD;
+  }
+
+  return (
+    <div style={{ background: M.card, borderBottom: `1px solid ${M.border}` }}>
+      {/* Match sub-header */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "8px 16px 4px",
+      }}>
+        <span style={{ fontSize: 11 }}>🏆</span>
+        <span style={{ fontSize: 11, color: M.sub, fontWeight: 500 }}>
+          {match.gw} · {match.time}
+        </span>
+      </div>
+
+      {/* Teams row */}
+      <div style={{ display: "flex", alignItems: "center", padding: "10px 12px 16px", gap: 8 }}>
+        {/* Home */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <CircleFlag flag={match.home.flag} size={76} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: M.text, textAlign: "center", lineHeight: 1.2 }}>
+            {match.home.name}
+          </span>
+        </div>
+
+        {/* Center: inputs + stats */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <ScoreInput value={h} onChange={v => onPick(v, a)} />
+            <ScoreInput value={a} onChange={v => onPick(h, v)} />
+          </div>
+
+          {/* Points pills: H / D / A */}
+          <div style={{ display: "flex", gap: 4 }}>
+            {[
+              { val: ptsH, active: h !== "" && a !== "" && Number(h) > Number(a) },
+              { val: ptsD, active: h !== "" && a !== "" && Number(h) === Number(a) },
+              { val: ptsA, active: h !== "" && a !== "" && Number(h) < Number(a) },
+            ].map(({ val, active }, i) => (
+              <div key={i} style={{
+                padding: "3px 9px", borderRadius: 6,
+                background: active ? M.goldBg : M.pill,
+                border: `1px solid ${active ? M.gold : "transparent"}`,
+                minWidth: 36, textAlign: "center",
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: active ? M.gold : M.sub }}>
+                  {val}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Percentages */}
+          <div style={{ display: "flex", gap: 10 }}>
+            {[match.home.pct, match.draw.pct, match.away.pct].map((p, i) => (
+              <span key={i} style={{ fontSize: 10, color: M.sub, minWidth: 28, textAlign: "center" }}>
+                {p}%
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Away */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <CircleFlag flag={match.away.flag} size={76} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: M.text, textAlign: "center", lineHeight: 1.2 }}>
+            {match.away.name}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Day strip ────────────────────────────────────────────────────────────────
 function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: number) => void }) {
   return (
     <div className="no-scrollbar" style={{
-      display: "flex", overflowX: "auto", gap: 8,
-      padding: "10px 16px", background: T.surface,
-      borderBottom: `1px solid ${T.border}`,
+      display: "flex", overflowX: "auto", background: M.bg,
+      borderBottom: `1px solid ${M.border}`,
     }}>
-      {DAYS.map(({ short, day, today }) => {
+      {DAYS.map(({ short, num, day, today }) => {
         const active = day === selected;
         return (
           <button key={day} onClick={() => onSelect(day)} style={{
             flexShrink: 0, display: "flex", flexDirection: "column",
-            alignItems: "center", padding: "8px 14px", borderRadius: 14, border: "none",
-            background: active ? T.accent : today ? T.accentBg : "transparent",
-            color: active ? "white" : today ? T.accent : T.sub,
-            cursor: "pointer", transition: "all 0.15s", minWidth: 48,
+            alignItems: "center", padding: "10px 14px", gap: 2,
+            background: active ? M.gold : "transparent",
+            border: "none", cursor: "pointer", transition: "background 0.15s",
           }}>
-            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {today ? "TODAY" : "Jun"}
+            <span style={{
+              fontSize: 10, fontWeight: 600, textTransform: "uppercase",
+              color: active ? "#000" : M.sub, letterSpacing: "0.03em",
+            }}>
+              {today && !active ? "Today" : short}
             </span>
-            <span style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.1 }}>{short}</span>
+            <span style={{
+              fontSize: 18, fontWeight: 900, lineHeight: 1,
+              color: active ? "#000" : today ? M.gold : M.text,
+            }}>{num}</span>
           </button>
         );
       })}
@@ -228,99 +276,30 @@ function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: numb
   );
 }
 
-// ─── Pick card ────────────────────────────────────────────────────────────────
-function PickCard({ match, picks, onPick }: {
-  match: Match;
-  picks: { home: ScoreVal; away: ScoreVal };
-  onPick: (h: ScoreVal, a: ScoreVal) => void;
-}) {
-  const h = picks.home; const a = picks.away;
-
-  let potPts: number | null = null;
-  if (h !== "" && a !== "") {
-    const hn = Number(h); const an = Number(a);
-    potPts = hn > an ? calcPoints(match.home.pct)
-           : an > hn ? calcPoints(match.away.pct)
-           : calcPoints(match.draw.pct);
-  }
-
-  const inputStyle = (filled: boolean): React.CSSProperties => ({
-    width: 56, height: 56, borderRadius: 16, outline: "none",
-    border: `2px solid ${filled ? T.accent : T.border}`,
-    background: filled ? T.accentBg : T.bg,
-    fontSize: 24, fontWeight: 900, textAlign: "center", color: T.text,
-    transition: "all 0.15s",
-    boxShadow: filled ? `0 0 0 3px ${T.accent}20` : "none",
-  });
-
+// ─── Countdown ───────────────────────────────────────────────────────────────
+function Countdown() {
+  const [s, setS] = useState(0);
+  useEffect(() => {
+    const target = new Date("2026-06-18T15:00:00-04:00").getTime();
+    const tick = () => setS(Math.max(0, Math.floor((target - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sc = s % 60;
   return (
     <div style={{
-      margin: "0 16px 12px", borderRadius: 20, overflow: "hidden",
-      background: T.surface, border: `1px solid ${T.border}`,
-      boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+      display: "flex", alignItems: "center", gap: 6,
+      padding: "4px 12px", borderRadius: 20,
+      background: M.mute,
     }}>
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "10px 16px", background: T.bg, borderBottom: `1px solid ${T.border}`,
-      }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          ⚽ World Cup · {match.time}
-        </span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.mute }}>🔒 Locks at kickoff</span>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", padding: "20px 16px", gap: 8 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 46, lineHeight: 1 }}>{match.home.flag}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: T.text, textAlign: "center", lineHeight: 1.2 }}>
-            {match.home.name}
-          </span>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <input
-            type="text" inputMode="numeric" pattern="[0-9]*"
-            value={h === "" ? "" : String(h)}
-            onChange={e => {
-              const v = e.target.value.replace(/\D/g, "");
-              onPick(v === "" ? "" : Math.min(20, parseInt(v) || 0), a);
-            }}
-            placeholder="–"
-            style={inputStyle(h !== "")}
-          />
-          <span style={{ fontSize: 22, fontWeight: 900, color: T.mute }}>:</span>
-          <input
-            type="text" inputMode="numeric" pattern="[0-9]*"
-            value={a === "" ? "" : String(a)}
-            onChange={e => {
-              const v = e.target.value.replace(/\D/g, "");
-              onPick(h, v === "" ? "" : Math.min(20, parseInt(v) || 0));
-            }}
-            placeholder="–"
-            style={inputStyle(a !== "")}
-          />
-        </div>
-
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 46, lineHeight: 1 }}>{match.away.flag}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: T.text, textAlign: "center", lineHeight: 1.2 }}>
-            {match.away.name}
-          </span>
-        </div>
-      </div>
-
-      {potPts !== null && (
-        <div style={{
-          padding: "10px 16px", borderTop: `1px solid ${T.border}`,
-          background: T.accentBg, display: "flex", alignItems: "center",
-          justifyContent: "center", gap: 8,
-        }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>
-            🎯 {potPts} pts if your pick is right
-          </span>
-          <span style={{ fontSize: 11, color: T.sub }}>· ×3 for exact score</span>
-        </div>
-      )}
+      <span style={{ fontSize: 12 }}>🕐</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: M.text, fontVariantNumeric: "tabular-nums" }}>
+        {pad(h)} : {pad(m)} : {pad(sc)}
+      </span>
     </div>
   );
 }
@@ -348,66 +327,74 @@ function PicksTab({ user }: { user: { name: string; avatar: string } }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* User bar */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 16px", background: T.surface, borderBottom: `1px solid ${T.border}`,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 12, background: T.accentBg,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 20, border: `1.5px solid ${T.accent}44`,
-          }}>{user.avatar}</div>
-          <div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text }}>{user.name}</p>
-            <p style={{ margin: 0, fontSize: 11, color: T.sub }}>
-              {filled} / {dayMatches.length} picks today
-            </p>
-          </div>
-        </div>
-        <div style={{
-          padding: "6px 14px", borderRadius: 20,
-          background: T.goldBg, border: `1px solid ${T.gold}44`,
-        }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>⚽ WC 2026</span>
-        </div>
-      </div>
-
       <DayStrip selected={day} onSelect={setDay} />
 
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", paddingTop: 12, background: T.bg }}>
-        {dayMatches.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 8 }}>
-            <span style={{ fontSize: 48 }}>⚽</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: T.sub }}>No matches today</span>
-          </div>
-        ) : dayMatches.map(m => (
-          <PickCard key={m.id} match={m}
-            picks={picks[m.id] ?? { home: "", away: "" }}
-            onPick={(h, a) => setPick(m.id, h, a)} />
-        ))}
-        <div style={{ height: 12 }} />
+      {/* Countdown + status bar */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 16px", background: M.bg, borderBottom: `1px solid ${M.border}`,
+      }}>
+        <Countdown />
+        <span style={{ fontSize: 12, color: M.sub, fontWeight: 600 }}>
+          {filled} / {dayMatches.length} filled
+        </span>
       </div>
 
-      {/* CTA */}
-      <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}` }}>
+      {/* Section header */}
+      {dayMatches.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 16px 8px", background: M.bg,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>🏆</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: M.text }}>World Cup 2026</span>
+          </div>
+          <span style={{ fontSize: 12, color: M.sub }}>{dayMatches.length} games</span>
+        </div>
+      )}
+
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
+        {dayMatches.length === 0 ? (
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", height: 200, gap: 12,
+          }}>
+            <span style={{ fontSize: 48 }}>⚽</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: M.sub }}>No games today</span>
+          </div>
+        ) : (
+          dayMatches.map(m => (
+            <MatchCard key={m.id} match={m}
+              picks={picks[m.id] ?? { home: "", away: "" }}
+              onPick={(h, a) => setPick(m.id, h, a)} />
+          ))
+        )}
+        <div style={{ height: 80 }} />
+      </div>
+
+      {/* Lock button */}
+      <div style={{
+        position: "absolute", bottom: 64, left: 0, right: 0,
+        padding: "12px 16px",
+        background: `linear-gradient(to top, ${M.bg} 70%, transparent)`,
+      }}>
         <button onClick={save} disabled={filled === 0} style={{
-          width: "100%", padding: "17px", borderRadius: 16, border: "none",
-          background: saved ? T.green : filled > 0 ? T.accent : T.border,
-          color: "white", fontSize: 15, fontWeight: 700,
-          cursor: filled > 0 ? "pointer" : "default",
+          width: "100%", padding: "16px", borderRadius: 14, border: "none",
+          background: saved ? M.green : filled > 0 ? M.gold : M.mute,
+          color: filled > 0 ? "#000" : M.sub,
+          fontSize: 15, fontWeight: 800, cursor: filled > 0 ? "pointer" : "default",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           transition: "all 0.2s",
-          boxShadow: filled > 0 ? `0 4px 20px ${T.accent}50` : "none",
+          boxShadow: filled > 0 ? `0 4px 24px ${M.gold}60` : "none",
         }}>
           {saved
-            ? <><Check size={16} /> Picks saved!</>
+            ? <><Check size={16} /> Predictions locked!</>
             : filled === dayMatches.length && dayMatches.length > 0
-              ? `🔒 Lock all ${filled} picks`
+              ? `🔒  Lock all ${filled} predictions`
               : filled > 0
-                ? `Lock ${filled} / ${dayMatches.length} picks`
-                : "Enter your picks above"}
+                ? `Lock ${filled} of ${dayMatches.length} predictions`
+                : "Enter your predictions above"}
         </button>
       </div>
     </div>
@@ -421,12 +408,48 @@ function ResultsTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* GW nav — MPP style */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "10px 16px", background: M.bg, borderBottom: `1px solid ${M.border}`,
+      }}>
+        <button style={{
+          width: 36, height: 36, borderRadius: 10, border: "none",
+          background: M.mute, display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer",
+        }}><ChevronLeft size={16} color={M.text} /></button>
+
+        <div style={{
+          flex: 1, padding: "8px 12px", borderRadius: 10, background: M.mute,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: M.text }}>GW.1 / 9</p>
+            <p style={{ margin: 0, fontSize: 11, color: M.sub }}>GW.1</p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22C55E" }} />
+            <span style={{ fontSize: 12, color: M.sub }}>Live</span>
+          </div>
+        </div>
+
+        <button style={{
+          width: 36, height: 36, borderRadius: 10, border: "none",
+          background: M.mute, display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer",
+        }}><ChevronRight size={16} color={M.text} /></button>
+      </div>
+
       <DayStrip selected={day} onSelect={setDay} />
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", paddingTop: 12, background: T.bg }}>
+
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
         {dayResults.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 12 }}>
             <span style={{ fontSize: 48 }}>⏳</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: T.sub }}>No results yet</span>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: M.text, textTransform: "uppercase" }}>
+              NO AVAILABLE DATA
+            </p>
+            <p style={{ margin: 0, fontSize: 13, color: M.sub }}>No results for this gameweek</p>
           </div>
         ) : dayResults.map(m => {
           const homeWon = m.home.score > m.away.score;
@@ -438,204 +461,167 @@ function ResultsTab() {
             (awayWon && m.myPick.away > m.myPick.home) ||
             (isDraw  && m.myPick.home === m.myPick.away)
           );
-          const winnerPct = homeWon ? m.home.pct : awayWon ? m.away.pct : m.draw.pct;
-          const pts = exact ? calcPoints(winnerPct) * 3 : correct ? calcPoints(winnerPct) : 0;
+          const winPct = homeWon ? m.home.pct : awayWon ? m.away.pct : m.draw.pct;
+          const earnedPts = exact ? pts(winPct) * 3 : correct ? pts(winPct) : 0;
 
           return (
-            <div key={m.id} style={{
-              margin: "0 16px 12px", borderRadius: 20, overflow: "hidden",
-              background: T.surface, border: `1px solid ${T.border}`,
-              boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-            }}>
-              <div style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: "10px 16px", background: T.bg, borderBottom: `1px solid ${T.border}`,
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  ⚽ WC 2026 · {m.date}
-                </span>
-                {pts > 0 && (
-                  <span style={{ fontSize: 13, fontWeight: 800, color: exact ? T.gold : T.green }}>
-                    +{pts} pts {exact ? "🎯" : "✓"}
-                  </span>
-                )}
-                {pts === 0 && m.myPick && (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.mute }}>0 pts</span>
-                )}
+            <div key={m.id} style={{ background: M.card, borderBottom: `1px solid ${M.border}` }}>
+              {/* Sub-header */}
+              <div style={{ padding: "8px 16px 4px", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11 }}>🏆</span>
+                <span style={{ fontSize: 11, color: M.sub }}>{m.gw} · {m.date}</span>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", padding: "20px 16px", gap: 10 }}>
+              {/* Match row */}
+              <div style={{ display: "flex", alignItems: "center", padding: "10px 12px 14px", gap: 8 }}>
+                {/* Home */}
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 42, lineHeight: 1 }}>{m.home.flag}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.text, textAlign: "center" }}>{m.home.name}</span>
+                  <CircleFlag flag={m.home.flag} size={68} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: M.text, textAlign: "center" }}>{m.home.name}</span>
                 </div>
 
+                {/* Score + pick */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <div style={{
-                      width: 50, height: 50, borderRadius: 14,
-                      background: homeWon ? `${T.green}18` : T.bg,
-                      border: `2px solid ${homeWon ? T.green : T.border}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 22, fontWeight: 900, color: T.text,
-                    }}>{m.home.score}</div>
-                    <span style={{ fontSize: 20, fontWeight: 900, color: T.mute }}>:</span>
-                    <div style={{
-                      width: 50, height: 50, borderRadius: 14,
-                      background: awayWon ? `${T.green}18` : T.bg,
-                      border: `2px solid ${awayWon ? T.green : T.border}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 22, fontWeight: 900, color: T.text,
-                    }}>{m.away.score}</div>
+                  {/* Final score */}
+                  <div style={{
+                    padding: "8px 20px", borderRadius: 10,
+                    background: M.mute, border: `2px solid ${exact ? M.gold : correct ? "#22C55E" : M.border}`,
+                  }}>
+                    <span style={{ fontSize: 22, fontWeight: 900, color: M.text, fontVariantNumeric: "tabular-nums" }}>
+                      {m.home.score} : {m.away.score}
+                    </span>
                   </div>
-                  {m.myPick && (
-                    <div style={{
-                      padding: "4px 12px", borderRadius: 20,
-                      background: exact ? T.goldBg : correct ? T.accentBg : T.redBg,
-                      border: `1px solid ${exact ? T.gold + "55" : correct ? T.accent + "55" : T.red + "33"}`,
-                    }}>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700,
-                        color: exact ? T.gold : correct ? T.accent : T.red,
-                      }}>
-                        {exact ? "🎯 Exact!" : correct ? "✓ Correct" : `✗ ${m.myPick.home}–${m.myPick.away}`}
+
+                  {/* My pick + points */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {m.myPick && (
+                      <span style={{ fontSize: 11, color: M.sub }}>
+                        Pick: {m.myPick.home}–{m.myPick.away}
                       </span>
-                    </div>
-                  )}
+                    )}
+                    {earnedPts > 0 && (
+                      <div style={{
+                        padding: "3px 10px", borderRadius: 8,
+                        background: exact ? M.gold : "#22C55E22",
+                        border: `1px solid ${exact ? M.gold : "#22C55E"}`,
+                      }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: exact ? "#000" : "#22C55E" }}>
+                          +{earnedPts} pts {exact ? "🎯" : "✓"}
+                        </span>
+                      </div>
+                    )}
+                    {!earnedPts && m.myPick && (
+                      <span style={{ fontSize: 11, color: M.red }}>✗ miss</span>
+                    )}
+                  </div>
                 </div>
 
+                {/* Away */}
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 42, lineHeight: 1 }}>{m.away.flag}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.text, textAlign: "center" }}>{m.away.name}</span>
+                  <CircleFlag flag={m.away.flag} size={68} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: M.text, textAlign: "center" }}>{m.away.name}</span>
                 </div>
               </div>
+
+              {/* My odd / My prediction row — MPP style */}
+              {m.myPick && (
+                <div style={{
+                  display: "flex", alignItems: "center",
+                  padding: "8px 16px 12px", gap: 12,
+                  borderTop: `1px solid ${M.border}`,
+                }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 10, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>My odd</p>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: M.text }}>{earnedPts > 0 ? pts(winPct) : "–"}</p>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: 10, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>My prediction</p>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: M.text }}>{m.myPick.home} – {m.myPick.away}</p>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
-        <div style={{ height: 12 }} />
+        <div style={{ height: 16 }} />
       </div>
     </div>
   );
 }
 
-// ─── Leaderboard tab ──────────────────────────────────────────────────────────
-function LeaderboardTab({ user }: { user: { name: string; avatar: string } }) {
+// ─── Ranking tab ──────────────────────────────────────────────────────────────
+function RankingTab({ user }: { user: { name: string; avatar: string } }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.bg }}>
-      {/* GW selector */}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: M.bg }}>
+      {/* GW nav */}
       <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "12px 16px", background: T.surface, borderBottom: `1px solid ${T.border}`,
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "10px 16px", borderBottom: `1px solid ${M.border}`,
       }}>
-        <button style={{
-          width: 34, height: 34, borderRadius: 10, cursor: "pointer",
-          border: `1px solid ${T.border}`, background: T.bg,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}><ChevronLeft size={16} color={T.sub} /></button>
-        <div style={{ textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.text }}>Matchday 1</p>
-          <p style={{ margin: 0, fontSize: 11, color: T.sub }}>Jun 17–18 · 9 matchdays total</p>
+        <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: M.mute, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <ChevronLeft size={16} color={M.text} />
+        </button>
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: M.text }}>GameWeek 1 / 9</p>
         </div>
-        <button style={{
-          width: 34, height: 34, borderRadius: 10, cursor: "pointer",
-          border: `1px solid ${T.border}`, background: T.bg,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}><ChevronRight size={16} color={T.sub} /></button>
+        <button style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: M.mute, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <ChevronRight size={16} color={M.text} />
+        </button>
+      </div>
+
+      {/* Table header */}
+      <div style={{
+        display: "flex", alignItems: "center", padding: "10px 16px",
+        borderBottom: `1px solid ${M.border}`,
+      }}>
+        <span style={{ flex: 1, fontSize: 11, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>Players</span>
+        <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Good</span>
+        <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Exacts</span>
+        <span style={{ width: 60, textAlign: "right", fontSize: 11, color: M.gold, textTransform: "uppercase" }}>Points</span>
       </div>
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
-        {/* Podium */}
-        <div style={{ padding: "24px 16px 12px", display: "flex", justifyContent: "center", gap: 8, alignItems: "flex-end" }}>
-          {/* 2nd */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 30 }}>{MOCK_BOARD[1].avatar}</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{MOCK_BOARD[1].name}</span>
-            <div style={{
-              width: 84, height: 64, borderRadius: "14px 14px 0 0",
-              background: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center",
+        {MOCK_BOARD.map((p, i) => {
+          const isMe = p.name === user.name;
+          return (
+            <div key={p.name} style={{
+              display: "flex", alignItems: "center", padding: "14px 16px",
+              borderBottom: `1px solid ${M.border}`,
+              background: isMe ? "#1E1A10" : "transparent",
             }}>
-              <div style={{ textAlign: "center" }}>
-                <p style={{ margin: 0, fontSize: 11, color: T.sub, fontWeight: 700 }}>2nd</p>
-                <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: T.text }}>{MOCK_BOARD[1].pts}</p>
-                <p style={{ margin: 0, fontSize: 9, color: T.mute }}>pts</p>
-              </div>
-            </div>
-          </div>
-          {/* 1st */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>👑</span>
-            <span style={{ fontSize: 36 }}>{MOCK_BOARD[0].avatar}</span>
-            <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>{MOCK_BOARD[0].name}</span>
-            <div style={{
-              width: 84, height: 88, borderRadius: "14px 14px 0 0",
-              background: `linear-gradient(135deg, ${T.gold}, #D97706)`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <div style={{ textAlign: "center" }}>
-                <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>1st</p>
-                <p style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "white" }}>{MOCK_BOARD[0].pts}</p>
-                <p style={{ margin: 0, fontSize: 9, color: "rgba(255,255,255,0.8)" }}>pts</p>
-              </div>
-            </div>
-          </div>
-          {/* 3rd */}
-          {MOCK_BOARD[2] && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 30 }}>{MOCK_BOARD[2].avatar}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{MOCK_BOARD[2].name}</span>
-              <div style={{
-                width: 84, height: 46, borderRadius: "14px 14px 0 0",
-                background: "#E8D5BC", display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <div style={{ textAlign: "center" }}>
-                  <p style={{ margin: 0, fontSize: 11, color: "#8B7355", fontWeight: 700 }}>3rd</p>
-                  <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: T.text }}>{MOCK_BOARD[2].pts}</p>
-                  <p style={{ margin: 0, fontSize: 9, color: T.mute }}>pts</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, width: 20, color: i === 0 ? M.gold : M.sub }}>
+                  {i + 1}
+                </span>
+                <div style={{
+                  width: 42, height: 42, borderRadius: "50%",
+                  background: M.mute, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 24,
+                  border: isMe ? `2px solid ${M.gold}` : "none",
+                }}>{p.avatar}</div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: M.text }}>
+                    {p.name}
+                    {isMe && <span style={{ fontSize: 11, color: M.gold, marginLeft: 6 }}>· you</span>}
+                  </p>
                 </div>
               </div>
+              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good}</span>
+              <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact}</span>
+              <span style={{ width: 60, textAlign: "right", fontSize: 18, fontWeight: 900, color: M.gold }}>{p.pts}</span>
             </div>
-          )}
-        </div>
+          );
+        })}
 
-        {/* Full table */}
-        <div style={{ margin: "0 16px 16px", borderRadius: 20, overflow: "hidden", background: T.surface, border: `1px solid ${T.border}` }}>
-          <div style={{
-            display: "flex", padding: "10px 16px",
-            borderBottom: `1px solid ${T.border}`, background: T.bg,
+        {/* Join the challenge button — MPP style */}
+        <div style={{ padding: "20px 16px" }}>
+          <button style={{
+            width: "100%", padding: "18px", borderRadius: 14, border: "none",
+            background: M.gold, color: "#000",
+            fontSize: 15, fontWeight: 700, cursor: "pointer",
           }}>
-            <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: T.mute, textTransform: "uppercase", letterSpacing: "0.05em" }}>Player</span>
-            <span style={{ width: 56, textAlign: "center", fontSize: 10, fontWeight: 700, color: T.mute, textTransform: "uppercase" }}>Correct</span>
-            <span style={{ width: 56, textAlign: "right", fontSize: 10, fontWeight: 700, color: T.gold, textTransform: "uppercase" }}>Points</span>
-          </div>
-          {MOCK_BOARD.map((p, i) => {
-            const isMe = p.name === user.name;
-            return (
-              <div key={p.name} style={{
-                display: "flex", alignItems: "center", padding: "14px 16px",
-                borderBottom: i < MOCK_BOARD.length - 1 ? `1px solid ${T.border}` : "none",
-                background: isMe ? `${T.accent}08` : "transparent",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                  <span style={{ fontSize: 14, fontWeight: 900, width: 18, color: i === 0 ? T.gold : T.mute }}>{i + 1}</span>
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 12, fontSize: 22,
-                    background: isMe ? T.accentBg : T.bg,
-                    border: `1.5px solid ${isMe ? T.accent : T.border}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>{p.avatar}</div>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.text }}>
-                      {p.name}
-                      {isMe && <span style={{ fontSize: 11, color: T.accent, fontWeight: 700, marginLeft: 6 }}>· you</span>}
-                    </p>
-                    <p style={{ margin: 0, fontSize: 11, color: T.sub }}>{p.exact} exact · {p.correct} correct</p>
-                  </div>
-                </div>
-                <span style={{ width: 56, textAlign: "center", fontSize: 13, fontWeight: 700, color: T.mute }}>{p.correct}</span>
-                <span style={{ width: 56, textAlign: "right", fontSize: 20, fontWeight: 900, color: T.gold }}>{p.pts}</span>
-              </div>
-            );
-          })}
+            Join the challenge
+          </button>
         </div>
       </div>
     </div>
@@ -644,6 +630,7 @@ function LeaderboardTab({ user }: { user: { name: string; avatar: string } }) {
 
 // ─── League tab ───────────────────────────────────────────────────────────────
 function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
+  const [sub, setSub] = useState<"ranking" | "settings">("ranking");
   const [copied, setCopied] = useState(false);
   const [email, setEmail] = useState("");
   const [waitlist, setWaitlist] = useState<"idle" | "loading" | "done">("idle");
@@ -662,168 +649,171 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
   }
 
   function share() {
-    const text = `Join my WC2026 picks league! Code: ${LEAGUE.code}`;
+    const text = `Join my WC2026 picks league! Code: ${LEAGUE_CODE}`;
     if (navigator.share) {
       navigator.share({ title: "ScoreVault", text, url: window.location.href }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(`${LEAGUE_CODE}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   }
 
   return (
-    <div className="no-scrollbar" style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", background: T.bg }}>
-      {/* League hero */}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* League hero — MPP style blurred image header */}
       <div style={{
-        padding: "24px 16px 20px", background: T.surface,
-        borderBottom: `1px solid ${T.border}`,
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+        background: `linear-gradient(to bottom, #2A1F0A, ${M.bg})`,
+        padding: "20px 16px 0",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
       }}>
         <div style={{
-          width: 72, height: 72, borderRadius: 22,
-          background: T.goldBg, border: `2px solid ${T.gold}44`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 34, boxShadow: `0 4px 24px ${T.gold}30`,
+          width: 80, height: 80, borderRadius: 18,
+          background: M.mute, display: "flex", alignItems: "center",
+          justifyContent: "center", fontSize: 36,
+          border: `2px solid ${M.gold}55`,
         }}>🏆</div>
-        <div style={{ textAlign: "center" }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: T.text }}>{LEAGUE.name}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: T.sub }}>
-            {MOCK_BOARD.length} friends · WC 2026 · 9 matchdays
-          </p>
-        </div>
-
-        {/* League code */}
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: M.text, letterSpacing: "0.04em" }}>
+          WC2026 SQUAD
+        </h2>
         <div style={{
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "14px 18px", borderRadius: 16, width: "100%",
-          background: T.bg, border: `1.5px dashed ${T.border}`,
-          boxSizing: "border-box",
+          display: "flex", alignItems: "center", gap: 6, padding: "4px 12px",
+          borderRadius: 20, background: M.mute,
         }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: T.mute, textTransform: "uppercase", letterSpacing: "0.07em" }}>
-              League code
-            </p>
-            <p style={{ margin: 0, fontSize: 20, fontWeight: 900, color: T.text, letterSpacing: "0.04em" }}>
-              {LEAGUE.code}
-            </p>
-          </div>
-          <button onClick={share} style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "10px 18px", borderRadius: 12, cursor: "pointer",
-            background: copied ? T.accentBg : T.surface,
-            border: `1.5px solid ${copied ? T.accent : T.border}`,
-            color: copied ? T.accent : T.sub,
-            fontSize: 13, fontWeight: 700, transition: "all 0.15s",
-          }}>
-            {copied ? <Check size={14} /> : <Share2 size={14} />}
-            {copied ? "Copied!" : "Invite"}
-          </button>
+          <span style={{ fontSize: 13 }}>👥</span>
+          <span style={{ fontSize: 12, color: M.text, fontWeight: 600 }}>{MOCK_BOARD.length}</span>
         </div>
-      </div>
 
-      {/* Members */}
-      <div style={{ padding: "16px 16px 0" }}>
-        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: T.mute, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Members
-        </p>
-        {MOCK_BOARD.map((p, i) => {
-          const isMe = p.name === user.name;
-          return (
-            <div key={p.name} style={{
-              display: "flex", alignItems: "center", gap: 12,
-              padding: "12px 16px", borderRadius: 16, marginBottom: 8,
-              background: T.surface,
-              border: `1.5px solid ${isMe ? T.accent + "55" : T.border}`,
+        {/* Sub-tabs */}
+        <div style={{ display: "flex", width: "100%", marginTop: 8 }}>
+          {(["ranking", "settings"] as const).map(t => (
+            <button key={t} onClick={() => setSub(t)} style={{
+              flex: 1, padding: "12px 0",
+              background: sub === t ? M.gold : "transparent",
+              border: "none", color: sub === t ? "#000" : M.sub,
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              textTransform: "capitalize", transition: "all 0.15s",
             }}>
-              <span style={{
-                fontSize: 13, fontWeight: 900, width: 18, textAlign: "center",
-                color: i === 0 ? T.gold : T.mute,
-              }}>{i + 1}</span>
-              <div style={{
-                width: 40, height: 40, borderRadius: 14, fontSize: 22,
-                background: isMe ? T.accentBg : T.bg,
-                border: `1.5px solid ${isMe ? T.accent : T.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>{p.avatar}</div>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.text }}>
-                  {p.name}
-                  {isMe && <span style={{ fontSize: 11, color: T.accent, fontWeight: 700, marginLeft: 6 }}>· you</span>}
-                </p>
-              </div>
-              <span style={{ fontSize: 17, fontWeight: 900, color: T.gold }}>{p.pts} pts</span>
-            </div>
-          );
-        })}
-
-        <button onClick={share} style={{
-          width: "100%", padding: "15px", borderRadius: 14, cursor: "pointer",
-          border: `2px dashed ${T.border}`, background: "transparent",
-          color: T.sub, fontSize: 14, fontWeight: 700,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-        }}>
-          <Plus size={18} color={T.sub} /> Invite a friend
-        </button>
+              {t === "ranking" ? "Ranking" : "Settings"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Love money CTA */}
-      <div style={{
-        margin: "16px 16px 28px", padding: "22px 20px", borderRadius: 22,
-        background: "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
-        boxShadow: "0 6px 30px rgba(0,0,0,0.18)",
-      }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-          <span style={{ fontSize: 28 }}>🏟️</span>
-          <div>
-            <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "white", lineHeight: 1.2 }}>
-              2 spots at the NYC Final
-            </p>
-            <p style={{ margin: "2px 0 0", fontSize: 12, fontWeight: 600, color: T.gold }}>
-              Winner takes the pot — for real
-            </p>
-          </div>
-        </div>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>
-          Real money leagues dropping soon. Lock your spot now — your crew is probably already on the list.
-        </p>
-        {waitlist === "done" ? (
-          <div style={{
-            padding: "14px", borderRadius: 14,
-            background: T.accentBg, border: `1px solid ${T.accent}44`,
-            textAlign: "center",
-          }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>
-              ✓ You&apos;re on the list — we&apos;ll hit you first
-            </span>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && submitEmail()}
-              style={{
-                flex: 1, padding: "14px 16px", borderRadius: 12, border: "none",
-                background: "rgba(255,255,255,0.08)", color: "white",
-                fontSize: 14, outline: "none",
-              }}
-            />
-            <button
-              onClick={submitEmail}
-              disabled={!email.includes("@") || waitlist === "loading"}
-              style={{
-                padding: "14px 18px", borderRadius: 12, border: "none",
-                background: email.includes("@") ? T.accent : "rgba(255,255,255,0.1)",
-                color: "white", fontSize: 14, fontWeight: 700,
-                cursor: email.includes("@") ? "pointer" : "default",
-                whiteSpace: "nowrap", flexShrink: 0,
-                transition: "all 0.15s",
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: M.bg }}>
+        {sub === "ranking" ? (
+          <>
+            {/* GW nav */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "12px 16px" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: M.text }}>GameWeek 1 / 9</span>
+            </div>
+
+            {/* Table */}
+            <div style={{ borderTop: `1px solid ${M.border}` }}>
+              <div style={{ display: "flex", padding: "8px 16px", borderBottom: `1px solid ${M.border}` }}>
+                <span style={{ flex: 1, fontSize: 11, color: M.sub, textTransform: "uppercase", letterSpacing: "0.05em" }}>Players</span>
+                <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Good</span>
+                <span style={{ width: 48, textAlign: "center", fontSize: 11, color: M.sub, textTransform: "uppercase" }}>Exacts</span>
+                <span style={{ width: 56, textAlign: "right", fontSize: 11, color: M.gold, textTransform: "uppercase" }}>Points</span>
+              </div>
+              {MOCK_BOARD.map((p, i) => {
+                const isMe = p.name === user.name;
+                return (
+                  <div key={p.name} style={{
+                    display: "flex", alignItems: "center", padding: "14px 16px",
+                    borderBottom: `1px solid ${M.border}`,
+                    background: isMe ? "#1E1A10" : "transparent",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, width: 18, color: i === 0 ? M.gold : M.sub }}>{i + 1}</span>
+                      <div style={{
+                        width: 40, height: 40, borderRadius: "50%", fontSize: 22,
+                        background: M.mute, display: "flex", alignItems: "center", justifyContent: "center",
+                        border: isMe ? `2px solid ${M.gold}` : "none",
+                      }}>{p.avatar}</div>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: M.text }}>
+                        {p.name}{isMe && <span style={{ color: M.gold, fontSize: 11, marginLeft: 6 }}>· you</span>}
+                      </span>
+                    </div>
+                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.good}</span>
+                    <span style={{ width: 48, textAlign: "center", fontSize: 13, color: M.sub }}>{p.exact}</span>
+                    <span style={{ width: 56, textAlign: "right", fontSize: 17, fontWeight: 900, color: M.gold }}>{p.pts}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Invite */}
+            <div style={{ padding: "16px" }}>
+              <button onClick={share} style={{
+                width: "100%", padding: "18px", borderRadius: 14, border: `1.5px solid ${M.border}`,
+                background: "transparent", color: M.text,
+                fontSize: 15, fontWeight: 700, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}>
-              {waitlist === "loading" ? "…" : "Count me in"}
-            </button>
+                + Invite a friend
+              </button>
+            </div>
+          </>
+        ) : (
+          <div style={{ padding: "16px" }}>
+            {/* Copy code — MPP style full-width row */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px", background: M.card, borderRadius: 0,
+              borderBottom: `1px solid ${M.border}`,
+            }}>
+              <span style={{ fontSize: 15, color: M.text }}>Copy code</span>
+              <button onClick={share} style={{
+                background: "transparent", border: "none",
+                fontSize: 15, fontWeight: 700, color: M.gold, cursor: "pointer",
+              }}>
+                {copied ? "Copied!" : LEAGUE_CODE}
+              </button>
+            </div>
+
+            {/* Love money CTA */}
+            <div style={{
+              marginTop: 24, padding: "20px", borderRadius: 16,
+              background: "#1A1506", border: `1px solid ${M.gold}33`,
+            }}>
+              <p style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 900, color: M.text }}>
+                🏟️ 2 spots at the NYC Final
+              </p>
+              <p style={{ margin: "0 0 16px", fontSize: 13, color: M.sub, lineHeight: 1.6 }}>
+                Real money leagues dropping soon. Winner takes the pot.
+              </p>
+              {waitlist === "done" ? (
+                <div style={{ padding: "14px", borderRadius: 12, background: "#0D1F0D", textAlign: "center" }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: M.green }}>
+                    ✓ You&apos;re on the list
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="email" placeholder="your@email.com"
+                    value={email} onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && submitEmail()}
+                    style={{
+                      flex: 1, padding: "13px 14px", borderRadius: 12,
+                      background: M.mute, border: "none", color: M.text,
+                      fontSize: 14, outline: "none",
+                    }}
+                  />
+                  <button onClick={submitEmail} disabled={!email.includes("@") || waitlist === "loading"} style={{
+                    padding: "13px 16px", borderRadius: 12, border: "none",
+                    background: email.includes("@") ? M.gold : M.mute,
+                    color: email.includes("@") ? "#000" : M.sub,
+                    fontSize: 14, fontWeight: 700,
+                    cursor: email.includes("@") ? "pointer" : "default",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {waitlist === "loading" ? "…" : "Count me in"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -831,12 +821,81 @@ function LeagueTab({ user }: { user: { name: string; avatar: string } }) {
   );
 }
 
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void }) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [name, setName] = useState("");
+  const [avatar, setAvatar] = useState(AVATARS[0]);
+  const valid = name.trim().length >= 2;
+
+  return (
+    <div style={{
+      height: "100%", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      padding: "32px 24px", background: M.bg,
+    }}>
+      <div style={{
+        width: 80, height: 80, borderRadius: 24, marginBottom: 20,
+        background: M.gold, display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 40, boxShadow: `0 8px 32px ${M.gold}60`,
+      }}>⚽</div>
+      <h1 style={{ fontSize: 28, fontWeight: 900, color: M.text, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        ScoreVault
+      </h1>
+      <p style={{ fontSize: 13, color: M.sub, margin: "0 0 36px", textAlign: "center", lineHeight: 1.6 }}>
+        {step === 1 ? "Pick scores. Climb the board.\nChallenge your friends." : `Nice, ${name.trim()}! Pick your avatar`}
+      </p>
+
+      {step === 1 ? (
+        <>
+          <input
+            type="text" autoFocus placeholder="Your name"
+            value={name} onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
+            style={{
+              width: "100%", padding: "16px 20px", marginBottom: 14,
+              borderRadius: 14, outline: "none", boxSizing: "border-box",
+              border: `2px solid ${valid ? M.gold : M.border}`,
+              background: M.card, fontSize: 18, fontWeight: 700,
+              color: M.text, transition: "border-color 0.2s",
+            }}
+          />
+          <button onClick={() => valid && setStep(2)} disabled={!valid} style={{
+            width: "100%", padding: "17px", borderRadius: 14, border: "none",
+            background: valid ? M.gold : M.mute,
+            color: valid ? "#000" : M.sub, fontSize: 15, fontWeight: 800,
+            cursor: valid ? "pointer" : "default",
+            boxShadow: valid ? `0 4px 20px ${M.gold}50` : "none",
+          }}>Continue →</button>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, width: "100%", marginBottom: 20 }}>
+            {AVATARS.map(a => (
+              <button key={a} onClick={() => setAvatar(a)} style={{
+                fontSize: 36, padding: "14px 0", borderRadius: 14, cursor: "pointer",
+                background: avatar === a ? M.goldBg : M.card,
+                border: `2px solid ${avatar === a ? M.gold : M.border}`,
+              }}>{a}</button>
+            ))}
+          </div>
+          <button onClick={() => onDone(name.trim(), avatar)} style={{
+            width: "100%", padding: "17px", borderRadius: 14, border: "none",
+            background: M.gold, color: "#000", fontSize: 15, fontWeight: 800,
+            cursor: "pointer", boxShadow: `0 4px 20px ${M.gold}50`,
+          }}>Let&apos;s play! 🚀</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
-const NAV: { id: Tab; label: string; emoji: string }[] = [
-  { id: "picks",       label: "Picks",    emoji: "⚽" },
-  { id: "results",     label: "Results",  emoji: "📋" },
-  { id: "leaderboard", label: "Rankings", emoji: "🏆" },
-  { id: "league",      label: "My League",emoji: "👥" },
+const NAV: { id: Tab; label: string; icon: string }[] = [
+  { id: "picks",       label: "Predictions", icon: "1:1" },
+  { id: "results",     label: "Results",     icon: "⚽" },
+  { id: "leaderboard", label: "Ranking",     icon: "🏆" },
+  { id: "league",      label: "My leagues",  icon: "👥" },
 ];
 
 // ─── App root ─────────────────────────────────────────────────────────────────
@@ -847,8 +906,8 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("sv_user");
-      if (stored) setUser(JSON.parse(stored));
+      const s = localStorage.getItem("sv_user");
+      if (s) setUser(JSON.parse(s));
     } catch {}
     setReady(true);
   }, []);
@@ -861,47 +920,59 @@ export default function App() {
 
   if (!ready) return null;
 
+  const TAB_TITLES: Record<Tab, string> = {
+    picks: "MY PREDICTIONS",
+    results: "RESULTS",
+    leaderboard: "STANDINGS",
+    league: "MY LEAGUES",
+  };
+
   return (
-    <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0F172A" }}>
+    <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#000" }}>
       <div style={{
         position: "relative", display: "flex", flexDirection: "column",
         width: "min(100vw, 430px)", height: "min(100dvh, 932px)",
-        background: T.bg, overflow: "hidden",
+        background: M.bg, overflow: "hidden",
       }}>
         {!user ? <Onboarding onDone={onboard} /> : (
           <>
-            {/* Top bar */}
+            {/* Top bar — MPP style */}
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "12px 16px", background: T.surface, borderBottom: `1px solid ${T.border}`,
+              padding: "12px 16px", background: M.bg,
+              borderBottom: `1px solid ${M.border}`,
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 40 }}>
                 <div style={{
-                  width: 34, height: 34, borderRadius: 10,
-                  background: T.accent, display: "flex", alignItems: "center",
+                  width: 36, height: 36, borderRadius: 10,
+                  background: M.gold, display: "flex", alignItems: "center",
                   justifyContent: "center", fontSize: 18,
                 }}>⚽</div>
-                <span style={{ fontSize: 17, fontWeight: 900, color: T.text }}>ScoreVault</span>
               </div>
-              <div style={{
-                padding: "6px 14px", borderRadius: 20,
-                background: T.accentBg, border: `1px solid ${T.accent}33`,
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: T.accent }}>WC 2026 · MD1</span>
+              <span style={{
+                fontSize: 15, fontWeight: 900, color: M.text,
+                letterSpacing: "0.08em", textTransform: "uppercase",
+              }}>{TAB_TITLES[tab]}</span>
+              <div style={{ width: 40, display: "flex", justifyContent: "flex-end" }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: M.mute, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 20,
+                }}>{user.avatar}</div>
               </div>
             </div>
 
             {/* Content */}
-            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
               {tab === "picks"       && <PicksTab user={user} />}
               {tab === "results"     && <ResultsTab />}
-              {tab === "leaderboard" && <LeaderboardTab user={user} />}
+              {tab === "leaderboard" && <RankingTab user={user} />}
               {tab === "league"      && <LeagueTab user={user} />}
             </div>
 
-            {/* Bottom nav */}
+            {/* Bottom nav — MPP gold bar */}
             <div style={{
-              display: "flex", background: T.surface, borderTop: `1px solid ${T.border}`,
+              display: "flex", background: M.nav,
               paddingBottom: "env(safe-area-inset-bottom)",
             }}>
               {NAV.map(item => {
@@ -909,15 +980,17 @@ export default function App() {
                 return (
                   <button key={item.id} onClick={() => setTab(item.id)} style={{
                     flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-                    padding: "10px 0 8px", border: "none", background: "transparent",
+                    padding: "10px 0 8px", border: "none",
+                    background: active ? "rgba(0,0,0,0.2)" : "transparent",
                     cursor: "pointer", gap: 3,
-                    borderTop: `2.5px solid ${active ? T.accent : "transparent"}`,
-                    transition: "all 0.15s",
                   }}>
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>{item.emoji}</span>
+                    <span style={{ fontSize: item.icon === "1:1" ? 11 : 20, fontWeight: item.icon === "1:1" ? 900 : 400, color: "#FFF", lineHeight: 1 }}>
+                      {item.icon}
+                    </span>
                     <span style={{
-                      fontSize: 9, fontWeight: 700, textTransform: "uppercase",
-                      letterSpacing: "0.04em", color: active ? T.accent : T.mute,
+                      fontSize: 9, fontWeight: active ? 700 : 500,
+                      color: active ? "#FFF" : "rgba(255,255,255,0.65)",
+                      textTransform: "capitalize", letterSpacing: "0.01em",
                     }}>{item.label}</span>
                   </button>
                 );
