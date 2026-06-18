@@ -230,16 +230,10 @@ function MatchCard({ match: m, pick, onPick, showStats }: {
             />
           </div>
           {showStats && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: 4, width: "100%" }}>
-                <OddPill label="1" pct={hPct} />
-                <OddPill label="X" pct={dPct} />
-                <OddPill label="2" pct={aPct} />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <svg width="9" height="9" viewBox="0 0 14 14" fill="none"><rect width="14" height="14" rx="3.5" fill="#8B5CF6"/><path d="M4.5 10V4.5H8a1.75 1.75 0 1 1 0 3.5H4.5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                <span style={{ fontSize: 9, color: "#8B5CF6", fontWeight: 700, opacity: 0.75 }}>via Polymarket</span>
-              </div>
+            <div style={{ display: "flex", gap: 4, width: "100%" }}>
+              <OddPill label="1" pct={hPct} />
+              <OddPill label="X" pct={dPct} />
+              <OddPill label="2" pct={aPct} />
             </div>
           )}
         </div>
@@ -286,9 +280,12 @@ function PicksTab({ userId }: { userId: string | null }) {
       <DayStrip selected={day} onSelect={setDay} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px 9px" }}>
         <Countdown day={day} />
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 650, color: P.muted, cursor: "pointer" }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect width="14" height="14" rx="3.5" fill="#8B5CF6"/><path d="M4.5 10V4.5H8a1.75 1.75 0 1 1 0 3.5H4.5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          Polymarket odds
+        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, fontWeight: 650, color: P.muted, cursor: "pointer" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+            Odds powered by
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://polymarket.com/images/brand/logo-black.png" alt="Polymarket" style={{ height: 12, opacity: 0.55, display: "block" }} />
+          </span>
           <button onClick={() => setShowStats(s => !s)} style={{
             width: 44, height: 26, borderRadius: 999, border: "none", cursor: "pointer",
             padding: 3, background: showStats ? P.blue : "#d9dce7", transition: "background 0.15s",
