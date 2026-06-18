@@ -118,19 +118,27 @@ const PAST: PastMatch[] = [
 
 const DAYS = [
   { short: "Thu", num: "17", day: 17 },
-  { short: "Fri", num: "18", day: 18, today: true },
-  { short: "Sat", num: "19", day: 19 },
+  { short: "Fri", num: "18", day: 18 },
+  { short: "Sat", num: "19", day: 19, today: true },
   { short: "Sun", num: "20", day: 20 },
   { short: "Mon", num: "21", day: 21 },
   { short: "Tue", num: "22", day: 22 },
   { short: "Wed", num: "23", day: 23 },
 ];
 
-const MOCK_BOARD = [
-  { name: "Vianney",   avatar: "🦁", pts: 480, good: 3, exact: 2 },
-  { name: "Jules",     avatar: "🐯", pts: 280, good: 2, exact: 1 },
-  { name: "Guillaume", avatar: "🦊", pts: 120, good: 1, exact: 0 },
-];
+// ISO kickoff times per match (ET = UTC-4)
+const KICKOFF: Record<string, string> = {
+  "gha-pan": "2026-06-18T15:00:00-04:00",
+  "uzb-col": "2026-06-18T18:00:00-04:00",
+  "cze-rsa": "2026-06-18T21:00:00-04:00",
+  "usa-bol": "2026-06-19T12:00:00-04:00",
+  "ecu-ven": "2026-06-19T15:00:00-04:00",
+  "mex-cam": "2026-06-19T18:00:00-04:00",
+  "fra-aut": "2026-06-20T15:00:00-04:00",
+  "bra-arg": "2026-06-20T21:00:00-04:00",
+  "eng-irl": "2026-06-21T15:00:00-04:00",
+  "esp-mar": "2026-06-21T18:00:00-04:00",
+};
 
 const AVATARS = ["⚽", "🦁", "🐯", "🦊", "🐺", "🦅", "🐉", "🦄"];
 const LEAGUE_CODE = "SV-2026";
@@ -249,19 +257,28 @@ function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: numb
 }
 
 // ─── Countdown ───────────────────────────────────────────────────────────────
-function Countdown() {
+function Countdown({ day }: { day: number }) {
   const [s, setS] = useState(0);
+
   useEffect(() => {
-    const target = new Date("2026-06-18T15:00:00-04:00").getTime();
+    const dayMatches = MATCHES.filter(m => m.day === day);
+    const targets = dayMatches
+      .map(m => KICKOFF[m.id] ? new Date(KICKOFF[m.id]).getTime() : null)
+      .filter((t): t is number => t !== null && t > Date.now())
+      .sort((a, b) => a - b);
+    const target = targets[0];
+    if (!target) { setS(0); return; }
     const tick = () => setS(Math.max(0, Math.floor((target - Date.now()) / 1000)));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [day]);
+
   const pad = (n: number) => String(n).padStart(2, "0");
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sc = s % 60;
+  if (s === 0) return <div className="sv-countdown"><span className="sv-clock">◷</span><span>— : — : —</span></div>;
   return (
     <div className="sv-countdown">
       <span className="sv-clock">◷</span>
@@ -312,7 +329,7 @@ function PicksTab({ userId }: { userId: string | null }) {
       <DayStrip selected={day} onSelect={setDay} />
 
       <div className="sv-picks-tools">
-        <Countdown />
+        <Countdown day={day} />
         <label className="sv-toggle-label">
           Show stats
           <button
