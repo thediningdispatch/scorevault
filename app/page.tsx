@@ -173,17 +173,19 @@ function MatchCard({ match: m, pick, onPick }: {
   const maxP = Math.max(hPct, dPct, aPct);
 
   function OddPill({ label, pct }: { label: string; pct: number }) {
+    const p = pts(pct);
     const fav = pct === maxP;
-    const under = pct < 25 && label !== "X";
+    const rare = pct < 25 && label !== "X";
     return (
       <div style={{
         flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-        padding: "6px 0", borderRadius: 8, gap: 2,
-        background: fav ? "rgba(21,169,87,0.08)" : under ? "rgba(223,83,83,0.07)" : P.gray,
-        border: `1px solid ${fav ? "rgba(21,169,87,0.25)" : under ? "rgba(223,83,83,0.18)" : "transparent"}`,
+        padding: "7px 0", borderRadius: 10, gap: 1,
+        background: fav ? "rgba(21,169,87,0.08)" : rare ? "rgba(223,83,83,0.07)" : P.gray,
+        border: `1px solid ${fav ? "rgba(21,169,87,0.25)" : rare ? "rgba(223,83,83,0.18)" : "transparent"}`,
       }}>
-        <span style={{ fontSize: 8, fontWeight: 800, opacity: 0.6 }}>{label}</span>
-        <span style={{ fontSize: 14, fontWeight: 800, color: fav ? P.green : under ? P.red : P.ink }}>{pct}%</span>
+        <span style={{ fontSize: 9, fontWeight: 800, color: P.muted, letterSpacing: "0.04em" }}>{label}</span>
+        <span style={{ fontSize: 16, fontWeight: 900, color: fav ? P.green : rare ? P.red : P.ink, lineHeight: 1 }}>{p}</span>
+        <span style={{ fontSize: 8, fontWeight: 700, color: fav ? P.green : rare ? P.red : P.muted, opacity: 0.7 }}>pts</span>
       </div>
     );
   }
@@ -276,7 +278,7 @@ function PicksTab({ userId }: { userId: string | null }) {
       <DayStrip selected={day} onSelect={setDay} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 16px 6px" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: P.muted }}>
-          Odds powered by
+          Points calculated via
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="https://polymarket.com/images/brand/logo-black.png" alt="Polymarket" style={{ height: 11, opacity: 0.45, display: "block" }} />
         </span>
