@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const sb = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(req: Request) {
   try {
@@ -6,31 +12,22 @@ export async function POST(req: Request) {
     if (!email || !email.includes("@")) {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
-
-    // Store in Vercel KV via REST API
-    // Setup: vercel.com → Storage → Create KV → env vars auto-injected
-    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-      await fetch(
-        `${process.env.KV_REST_API_URL}/zadd/waitlist/NX/${Date.now()}/${encodeURIComponent(email)}`,
-        { headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` } }
-      );
+    const { error } = await sb.from("waitlist").insert({ email: email.toLowerCase().trim() });
+    if (error && error.code !== "23505") { // ignore duplicate key
+      console.error("waitlist insert:", error);
     }
-
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
-export async function GET() {
-  // Read waitlist (admin only — protect with a secret in prod)
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-    return NextResponse.json({ emails: [], note: "KV not configured" });
+export async function GET(req: Request) {
+  const secret = new URL(req.url).searchParams.get("secret");
+  if (secret !== "scorevault2026") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const res = await fetch(
-    `${process.env.KV_REST_API_URL}/zrange/waitlist/0/-1`,
-    { headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` } }
-  );
-  const { result } = await res.json() as { result: string[] };
-  return NextResponse.json({ count: result?.length ?? 0, emails: result ?? [] });
+  const { data, error } = await sb.from("waitlist").select("email, created_at").order("created_at");
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ count: data?.length ?? 0, emails: data });
 }

@@ -767,15 +767,22 @@ function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
 }
 
 // ── PromoPopup ────────────────────────────────────────────────────────────────
-function PromoPopup({ onDismiss }: { onDismiss: () => void }) {
+function PromoPopup({ onDismiss, onDone }: { onDismiss: () => void; onDone: () => void }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
 
   async function submit() {
     if (!email.includes("@") || status !== "idle") return;
     setStatus("loading");
-    await new Promise(r => setTimeout(r, 900));
+    try {
+      await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch {}
     setStatus("done");
+    setTimeout(onDone, 1600); // close after showing confirmation
   }
 
   return (
@@ -871,8 +878,14 @@ export default function App() {
   const [showPromo, setShowPromo] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
 
+  // "Not now" / X → snooze 24h
   function dismissPromo() {
-    try { localStorage.setItem("sv_promo_seen", "1"); } catch {}
+    try { localStorage.setItem("sv_promo_snoozed", Date.now().toString()); } catch {}
+    setShowPromo(false);
+  }
+  // Email submitted → never show again
+  function dismissPromoDone() {
+    try { localStorage.setItem("sv_promo_done", "1"); } catch {}
     setShowPromo(false);
   }
 
@@ -884,7 +897,13 @@ export default function App() {
   useEffect(() => {
     const t = setTimeout(() => {
       try { const s = localStorage.getItem("sv_user"); if (s) setUser(JSON.parse(s)); } catch {}
-      try { if (!localStorage.getItem("sv_promo_seen")) setShowPromo(true); } catch {}
+      try {
+        if (!localStorage.getItem("sv_promo_done")) {
+          const snoozed = localStorage.getItem("sv_promo_snoozed");
+          const elapsed = snoozed ? Date.now() - parseInt(snoozed) : Infinity;
+          if (elapsed > 24 * 3600 * 1000) setShowPromo(true);
+        }
+      } catch {}
       setReady(true);
     }, 0);
     ensureSession().then(setUserId).catch(() => setUserId(null));
@@ -940,7 +959,7 @@ export default function App() {
 
         <BottomNav tab={tab} setTab={setTab} />
       </div>
-      {showPromo && <PromoPopup onDismiss={dismissPromo} />}
+      {showPromo && <PromoPopup onDismiss={dismissPromo} onDone={dismissPromoDone} />}
       {showInstall && !showPromo && <InstallBanner onDismiss={dismissInstall} />}
     </div>
   );
