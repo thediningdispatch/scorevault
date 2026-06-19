@@ -544,6 +544,16 @@ function ProfileTab({ user }: { user: { name: string; avatar: string } }) {
 }
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
+const BG_FLOATS = [
+  { emoji: "⚽", top: "8%",  left: "10%", delay: "0s",   size: 32, dur: "5.5s" },
+  { emoji: "🏆", top: "14%", left: "78%", delay: "0.8s", size: 28, dur: "6.2s" },
+  { emoji: "⭐", top: "62%", left: "88%", delay: "1.4s", size: 22, dur: "5.0s" },
+  { emoji: "🎯", top: "74%", left: "6%",  delay: "2.1s", size: 24, dur: "6.8s" },
+  { emoji: "⚽", top: "44%", left: "92%", delay: "0.4s", size: 18, dur: "4.8s" },
+  { emoji: "🌟", top: "30%", left: "4%",  delay: "1.9s", size: 20, dur: "7.0s" },
+  { emoji: "🏅", top: "86%", left: "55%", delay: "0.6s", size: 26, dur: "5.8s" },
+];
+
 function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
@@ -551,35 +561,61 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
   const valid = name.trim().length >= 2;
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px", background: P.canvas }}>
-      <div style={{ width: 80, height: 80, borderRadius: 24, marginBottom: 20, background: P.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, boxShadow: "0 8px 32px rgba(49,87,246,0.4)" }}>⚽</div>
-      <h1 style={{ fontSize: 28, fontWeight: 900, color: P.ink, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>ScoreVault</h1>
-      <p style={{ fontSize: 13, color: P.muted, margin: "0 0 36px", textAlign: "center", lineHeight: 1.6 }}>
-        {step === 1 ? "Pick scores. Climb the board. Challenge your friends." : `Nice, ${name.trim()}! Pick your avatar`}
-      </p>
-      {step === 1 ? (
-        <>
-          <input autoFocus placeholder="Your name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
-            style={{ width: "100%", padding: "16px 20px", marginBottom: 14, borderRadius: 14, outline: "none", boxSizing: "border-box", border: `2px solid ${valid ? P.blue : P.border}`, background: P.white, fontSize: 18, fontWeight: 700, color: P.ink, transition: "border-color 0.2s" }} />
-          <button onClick={() => valid && setStep(2)} disabled={!valid}
-            style={{ width: "100%", padding: 17, borderRadius: 14, border: "none", background: valid ? P.blue : P.border, color: valid ? "#fff" : P.muted, fontSize: 15, fontWeight: 800, cursor: valid ? "pointer" : "default", boxShadow: valid ? "0 4px 20px rgba(49,87,246,0.35)" : "none" }}>
-            Continue →
-          </button>
-        </>
-      ) : (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, width: "100%", marginBottom: 20 }}>
-            {AVATARS.map(a => (
-              <button key={a} onClick={() => setAvatar(a)}
-                style={{ fontSize: 36, padding: "14px 0", borderRadius: 14, cursor: "pointer", background: avatar === a ? P.blueBg : P.white, border: `2px solid ${avatar === a ? P.blue : P.border}` }}>{a}</button>
-            ))}
-          </div>
-          <button onClick={() => onDone(name.trim(), avatar)}
-            style={{ width: "100%", padding: 17, borderRadius: 14, border: "none", background: P.blue, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px rgba(49,87,246,0.35)" }}>
-            Let&apos;s play! 🚀
-          </button>
-        </>
-      )}
+    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+
+      {BG_FLOATS.map((f, i) => (
+        <span key={i} style={{ position: "absolute", top: f.top, left: f.left, fontSize: f.size, opacity: 0.12, pointerEvents: "none", userSelect: "none", animation: `sv-float ${f.dur} ease-in-out ${f.delay} infinite` }}>{f.emoji}</span>
+      ))}
+
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", alignItems: "center" }}>
+
+        <div style={{ position: "relative", marginBottom: 22 }}>
+          <div style={{ position: "absolute", inset: -8, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.3)", animation: "sv-pulse-ring 1.8s ease-out 0.6s infinite" }} />
+          <div style={{ position: "absolute", inset: -18, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.12)", animation: "sv-pulse-ring 1.8s ease-out 1.1s infinite" }} />
+          <div style={{ width: 90, height: 90, borderRadius: 26, background: "rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", border: "1.5px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46, animation: "sv-pop-in 0.7s cubic-bezier(0.34,1.56,0.64,1) both", boxShadow: "0 12px 40px rgba(0,0,0,0.3)" }}>⚽</div>
+        </div>
+
+        <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", margin: "0 0 6px", letterSpacing: "0.06em", textAlign: "center", animation: "sv-fade-up 0.5s ease 0.4s both" }}>SCOREVAULT</h1>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: "0 0 32px", textAlign: "center", lineHeight: 1.65, animation: "sv-fade-up 0.5s ease 0.55s both" }}>
+          {step === 1 ? "Predict scores · Climb the board · Win real prizes" : `Nice one, ${name.trim()}! Now pick your avatar`}
+        </p>
+
+        <div style={{ width: "100%", animation: "sv-fade-up 0.45s ease 0.65s both" }}>
+          {step === 1 ? (
+            <>
+              <input
+                autoFocus placeholder="Your name" value={name}
+                onChange={e => setName(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
+                style={{ width: "100%", padding: "17px 20px", marginBottom: 12, borderRadius: 16, outline: "none", border: `2px solid ${valid ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.2)"}`, background: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)", fontSize: 18, fontWeight: 700, color: "#fff", transition: "border-color 0.2s" }}
+              />
+              <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
+                <button onClick={() => valid && setStep(2)} disabled={!valid}
+                  style={{ width: "100%", padding: 17, borderRadius: 16, border: "none", background: valid ? "#fff" : "rgba(255,255,255,0.18)", color: valid ? P.blue : "rgba(255,255,255,0.35)", fontSize: 15, fontWeight: 900, cursor: valid ? "pointer" : "default", transition: "all 0.2s" }}>
+                  Continue →
+                </button>
+                {valid && <div style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)", animation: "sv-shine 1.6s ease 0.9s infinite", pointerEvents: "none" }} />}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, width: "100%", marginBottom: 16 }}>
+                {AVATARS.map(a => (
+                  <button key={a} onClick={() => setAvatar(a)} style={{ fontSize: 34, padding: "13px 0", borderRadius: 14, cursor: "pointer", background: avatar === a ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)", border: `2px solid ${avatar === a ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.15)"}`, transition: "all 0.15s", transform: avatar === a ? "scale(1.1)" : "scale(1)" }}>{a}</button>
+                ))}
+              </div>
+              <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
+                <button onClick={() => onDone(name.trim(), avatar)}
+                  style={{ width: "100%", padding: 17, borderRadius: 16, border: "none", background: "#fff", color: P.blue, fontSize: 15, fontWeight: 900, cursor: "pointer" }}>
+                  Let&apos;s play! 🚀
+                </button>
+                <div style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)", animation: "sv-shine 1.6s ease 0.3s infinite", pointerEvents: "none" }} />
+              </div>
+            </>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }
