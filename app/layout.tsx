@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const viewport: Viewport = {
-  themeColor: "#0D0E11",
+  themeColor: "#1a2461",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -11,8 +11,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "ScoreVault",
-  description: "On-chain WC2026 prediction league — lock funds, commit picks, settle on-chain.",
+  title: "ScoreVault · WC2026 Prediction League",
+  description: "Predict World Cup 2026 scores, climb the leaderboard and win the pot with your friends. Free, instant, no sign-up required.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -20,6 +20,20 @@ export const metadata: Metadata = {
     title: "ScoreVault",
   },
   formatDetection: { telephone: false },
+  openGraph: {
+    title: "ScoreVault · WC2026 Prediction League",
+    description: "Predict scores, climb the leaderboard, win the pot. The World Cup 2026 prediction game for you and your crew.",
+    url: "https://scorevault.org",
+    siteName: "ScoreVault",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "ScoreVault · WC2026 Prediction League",
+    description: "Predict scores, climb the leaderboard, win the pot.",
+  },
+  keywords: ["world cup 2026", "WC2026", "football predictions", "score predictor", "friend league", "sweepstake"],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -7,20 +7,18 @@ export default function AppleIcon() {
   return new ImageResponse(
     <div
       style={{
-        width: 180, height: 180,
-        background: "#0D0E11",
-        borderRadius: 36,
+        width: 180,
+        height: 180,
+        background: "linear-gradient(145deg, #1a2461 0%, #3157f6 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 4,
-      }}>
-      <div style={{ fontSize: 68, lineHeight: 1 }}>⚽</div>
-      <div style={{
-        fontSize: 26, fontWeight: 900, color: "#C49A2A",
-        letterSpacing: "0.1em",
-      }}>SV</div>
+        gap: 2,
+      }}
+    >
+      <div style={{ fontSize: 76, lineHeight: 1 }}>⚽</div>
+      <div style={{ fontSize: 22, fontWeight: 900, color: "#ffffff", letterSpacing: "0.12em" }}>SV</div>
     </div>,
     { width: 180, height: 180 }
   );

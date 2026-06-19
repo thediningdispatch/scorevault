@@ -1,7 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
-import { ensureSession, upsertProfile, savePicks, getUserPicks, getLeaderboard } from "./lib/supabase";
-import type { LeaderboardEntry, Pick as DBPick } from "./lib/supabase";
+import { useState, useEffect, useCallback } from "react";
+import {
+  supabase,
+  signOut,
+  getProfile, upsertProfile,
+  savePicks, getUserPicks, getResults,
+  getLeagueByCode, createLeague, joinLeague, getMyMembership,
+  getLeagueLeaderboard, getLeagueMembers, markMemberAsPaid, markMemberAsUnpaid,
+} from "./lib/supabase";
+import type { League, LeagueMember, LeaderboardEntry, Pick as DBPick } from "./lib/supabase";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -26,65 +33,120 @@ function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pc
 type Tab = "picks" | "results" | "ranking" | "profile";
 type ScoreVal = number | "";
 
-interface Match {
-  id: string; day: number; time: string; gw: string;
+interface WCMatch {
+  id: string;
+  day: number;     // tournament day 1–16
+  date: string;    // "Jun 12"
+  kickoff: string; // UTC ISO — for countdown
+  time: string;    // display in CET "21:00"
   home: { name: string; flag: string; pct: number };
   draw: { pct: number };
   away: { name: string; flag: string; pct: number };
 }
-interface PastMatch {
-  id: string; day: number; date: string; gw: string;
-  home: { name: string; flag: string; score: number; pct: number };
-  draw: { pct: number };
-  away: { name: string; flag: string; score: number; pct: number };
-  myPick: { home: number; away: number } | null;
+
+// ── WC 2026 full group stage schedule (70 matches, 16 days) ───────────────────
+// Tournament Day 1 = June 12 · kickoff times UTC · display in CET (UTC+2)
+const WC_MATCHES: WCMatch[] = [
+  // ── Day 1 – Jun 12 ───────────────────────────────────────────────────────
+  { id:"can-bih", day:1,  date:"Jun 12", kickoff:"2026-06-12T19:00:00Z", time:"21:00", home:{name:"Canada",       flag:"🇨🇦",pct:52}, draw:{pct:26}, away:{name:"Bosnia",      flag:"🇧🇦",pct:22} },
+  { id:"usa-par", day:1,  date:"Jun 12", kickoff:"2026-06-13T01:00:00Z", time:"03:00", home:{name:"USA",          flag:"🇺🇸",pct:65}, draw:{pct:20}, away:{name:"Paraguay",    flag:"🇵🇾",pct:15} },
+  // ── Day 2 – Jun 13 ───────────────────────────────────────────────────────
+  { id:"qat-sui", day:2,  date:"Jun 13", kickoff:"2026-06-13T19:00:00Z", time:"21:00", home:{name:"Qatar",        flag:"🇶🇦",pct:18}, draw:{pct:25}, away:{name:"Switzerland", flag:"🇨🇭",pct:57} },
+  { id:"bra-mar", day:2,  date:"Jun 13", kickoff:"2026-06-13T22:00:00Z", time:"00:00", home:{name:"Brazil",       flag:"🇧🇷",pct:50}, draw:{pct:28}, away:{name:"Morocco",     flag:"🇲🇦",pct:22} },
+  { id:"hai-sco", day:2,  date:"Jun 13", kickoff:"2026-06-14T01:00:00Z", time:"03:00", home:{name:"Haiti",        flag:"🇭🇹",pct:15}, draw:{pct:25}, away:{name:"Scotland",    flag:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pct:60} },
+  // ── Day 3 – Jun 14 ───────────────────────────────────────────────────────
+  { id:"aus-tur", day:3,  date:"Jun 14", kickoff:"2026-06-14T04:00:00Z", time:"06:00", home:{name:"Australia",    flag:"🇦🇺",pct:40}, draw:{pct:28}, away:{name:"Türkiye",     flag:"🇹🇷",pct:32} },
+  { id:"ger-cur", day:3,  date:"Jun 14", kickoff:"2026-06-14T17:00:00Z", time:"19:00", home:{name:"Germany",      flag:"🇩🇪",pct:75}, draw:{pct:15}, away:{name:"Curaçao",     flag:"🇨🇼",pct:10} },
+  { id:"ned-jpn", day:3,  date:"Jun 14", kickoff:"2026-06-14T20:00:00Z", time:"22:00", home:{name:"Netherlands",  flag:"🇳🇱",pct:52}, draw:{pct:25}, away:{name:"Japan",       flag:"🇯🇵",pct:23} },
+  { id:"civ-ecu", day:3,  date:"Jun 14", kickoff:"2026-06-14T23:00:00Z", time:"01:00", home:{name:"Ivory Coast",  flag:"🇨🇮",pct:42}, draw:{pct:30}, away:{name:"Ecuador",     flag:"🇪🇨",pct:28} },
+  { id:"swe-tun", day:3,  date:"Jun 14", kickoff:"2026-06-15T02:00:00Z", time:"04:00", home:{name:"Sweden",       flag:"🇸🇪",pct:55}, draw:{pct:25}, away:{name:"Tunisia",     flag:"🇹🇳",pct:20} },
+  // ── Day 4 – Jun 15 ───────────────────────────────────────────────────────
+  { id:"esp-cpv", day:4,  date:"Jun 15", kickoff:"2026-06-15T16:00:00Z", time:"18:00", home:{name:"Spain",        flag:"🇪🇸",pct:72}, draw:{pct:18}, away:{name:"Cape Verde",  flag:"🇨🇻",pct:10} },
+  { id:"bel-egy", day:4,  date:"Jun 15", kickoff:"2026-06-15T19:00:00Z", time:"21:00", home:{name:"Belgium",      flag:"🇧🇪",pct:58}, draw:{pct:22}, away:{name:"Egypt",       flag:"🇪🇬",pct:20} },
+  { id:"ksa-uru", day:4,  date:"Jun 15", kickoff:"2026-06-15T22:00:00Z", time:"00:00", home:{name:"Saudi Arabia", flag:"🇸🇦",pct:22}, draw:{pct:28}, away:{name:"Uruguay",     flag:"🇺🇾",pct:50} },
+  { id:"irn-nzl", day:4,  date:"Jun 15", kickoff:"2026-06-16T01:00:00Z", time:"03:00", home:{name:"Iran",         flag:"🇮🇷",pct:45}, draw:{pct:28}, away:{name:"New Zealand", flag:"🇳🇿",pct:27} },
+  // ── Day 5 – Jun 16 ───────────────────────────────────────────────────────
+  { id:"fra-sen", day:5,  date:"Jun 16", kickoff:"2026-06-16T19:00:00Z", time:"21:00", home:{name:"France",       flag:"🇫🇷",pct:60}, draw:{pct:22}, away:{name:"Senegal",     flag:"🇸🇳",pct:18} },
+  { id:"irq-nor", day:5,  date:"Jun 16", kickoff:"2026-06-16T22:00:00Z", time:"00:00", home:{name:"Iraq",         flag:"🇮🇶",pct:20}, draw:{pct:22}, away:{name:"Norway",      flag:"🇳🇴",pct:58} },
+  { id:"arg-alg", day:5,  date:"Jun 16", kickoff:"2026-06-17T01:00:00Z", time:"03:00", home:{name:"Argentina",    flag:"🇦🇷",pct:68}, draw:{pct:18}, away:{name:"Algeria",     flag:"🇩🇿",pct:14} },
+  // ── Day 6 – Jun 17 ───────────────────────────────────────────────────────
+  { id:"aut-jor", day:6,  date:"Jun 17", kickoff:"2026-06-17T04:00:00Z", time:"06:00", home:{name:"Austria",      flag:"🇦🇹",pct:55}, draw:{pct:25}, away:{name:"Jordan",      flag:"🇯🇴",pct:20} },
+  { id:"por-cod", day:6,  date:"Jun 17", kickoff:"2026-06-17T17:00:00Z", time:"19:00", home:{name:"Portugal",     flag:"🇵🇹",pct:68}, draw:{pct:18}, away:{name:"Congo DR",    flag:"🇨🇩",pct:14} },
+  { id:"eng-cro", day:6,  date:"Jun 17", kickoff:"2026-06-17T20:00:00Z", time:"22:00", home:{name:"England",      flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pct:58}, draw:{pct:22}, away:{name:"Croatia",     flag:"🇭🇷",pct:20} },
+  { id:"gha-pan", day:6,  date:"Jun 17", kickoff:"2026-06-17T23:00:00Z", time:"01:00", home:{name:"Ghana",        flag:"🇬🇭",pct:42}, draw:{pct:28}, away:{name:"Panama",      flag:"🇵🇦",pct:30} },
+  { id:"uzb-col", day:6,  date:"Jun 17", kickoff:"2026-06-18T02:00:00Z", time:"04:00", home:{name:"Uzbekistan",   flag:"🇺🇿",pct:12}, draw:{pct:22}, away:{name:"Colombia",    flag:"🇨🇴",pct:66} },
+  // ── Day 7 – Jun 18 ───────────────────────────────────────────────────────
+  { id:"cze-rsa", day:7,  date:"Jun 18", kickoff:"2026-06-18T16:00:00Z", time:"18:00", home:{name:"Czechia",      flag:"🇨🇿",pct:52}, draw:{pct:28}, away:{name:"South Africa",flag:"🇿🇦",pct:20} },
+  { id:"sui-bih", day:7,  date:"Jun 18", kickoff:"2026-06-18T19:00:00Z", time:"21:00", home:{name:"Switzerland",  flag:"🇨🇭",pct:65}, draw:{pct:20}, away:{name:"Bosnia",      flag:"🇧🇦",pct:15} },
+  { id:"can-qat", day:7,  date:"Jun 18", kickoff:"2026-06-18T22:00:00Z", time:"00:00", home:{name:"Canada",       flag:"🇨🇦",pct:72}, draw:{pct:18}, away:{name:"Qatar",       flag:"🇶🇦",pct:10} },
+  { id:"mex-kor", day:7,  date:"Jun 18", kickoff:"2026-06-19T01:00:00Z", time:"03:00", home:{name:"Mexico",       flag:"🇲🇽",pct:45}, draw:{pct:28}, away:{name:"South Korea", flag:"🇰🇷",pct:27} },
+  // ── Day 8 – Jun 19 ───────────────────────────────────────────────────────
+  { id:"usa-aus", day:8,  date:"Jun 19", kickoff:"2026-06-19T19:00:00Z", time:"21:00", home:{name:"USA",          flag:"🇺🇸",pct:45}, draw:{pct:28}, away:{name:"Australia",   flag:"🇦🇺",pct:27} },
+  { id:"sco-mar", day:8,  date:"Jun 19", kickoff:"2026-06-19T22:00:00Z", time:"00:00", home:{name:"Scotland",     flag:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pct:35}, draw:{pct:30}, away:{name:"Morocco",     flag:"🇲🇦",pct:35} },
+  { id:"bra-hai", day:8,  date:"Jun 19", kickoff:"2026-06-20T00:30:00Z", time:"02:30", home:{name:"Brazil",       flag:"🇧🇷",pct:80}, draw:{pct:12}, away:{name:"Haiti",       flag:"🇭🇹",pct:8 } },
+  { id:"tur-par", day:8,  date:"Jun 19", kickoff:"2026-06-20T03:00:00Z", time:"05:00", home:{name:"Türkiye",      flag:"🇹🇷",pct:50}, draw:{pct:25}, away:{name:"Paraguay",    flag:"🇵🇾",pct:25} },
+  // ── Day 9 – Jun 20 ───────────────────────────────────────────────────────
+  { id:"ned-swe", day:9,  date:"Jun 20", kickoff:"2026-06-20T17:00:00Z", time:"19:00", home:{name:"Netherlands",  flag:"🇳🇱",pct:52}, draw:{pct:26}, away:{name:"Sweden",      flag:"🇸🇪",pct:22} },
+  { id:"ger-civ", day:9,  date:"Jun 20", kickoff:"2026-06-20T20:00:00Z", time:"22:00", home:{name:"Germany",      flag:"🇩🇪",pct:60}, draw:{pct:22}, away:{name:"Ivory Coast", flag:"🇨🇮",pct:18} },
+  { id:"ecu-cur", day:9,  date:"Jun 20", kickoff:"2026-06-21T00:00:00Z", time:"02:00", home:{name:"Ecuador",      flag:"🇪🇨",pct:70}, draw:{pct:18}, away:{name:"Curaçao",     flag:"🇨🇼",pct:12} },
+  // ── Day 10 – Jun 21 ──────────────────────────────────────────────────────
+  { id:"tun-jpn", day:10, date:"Jun 21", kickoff:"2026-06-21T04:00:00Z", time:"06:00", home:{name:"Tunisia",      flag:"🇹🇳",pct:22}, draw:{pct:25}, away:{name:"Japan",       flag:"🇯🇵",pct:53} },
+  { id:"esp-ksa", day:10, date:"Jun 21", kickoff:"2026-06-21T16:00:00Z", time:"18:00", home:{name:"Spain",        flag:"🇪🇸",pct:72}, draw:{pct:18}, away:{name:"Saudi Arabia",flag:"🇸🇦",pct:10} },
+  { id:"bel-irn", day:10, date:"Jun 21", kickoff:"2026-06-21T19:00:00Z", time:"21:00", home:{name:"Belgium",      flag:"🇧🇪",pct:60}, draw:{pct:22}, away:{name:"Iran",        flag:"🇮🇷",pct:18} },
+  { id:"uru-cpv", day:10, date:"Jun 21", kickoff:"2026-06-21T22:00:00Z", time:"00:00", home:{name:"Uruguay",      flag:"🇺🇾",pct:72}, draw:{pct:18}, away:{name:"Cape Verde",  flag:"🇨🇻",pct:10} },
+  { id:"nzl-egy", day:10, date:"Jun 21", kickoff:"2026-06-22T01:00:00Z", time:"03:00", home:{name:"New Zealand",  flag:"🇳🇿",pct:35}, draw:{pct:30}, away:{name:"Egypt",       flag:"🇪🇬",pct:35} },
+  // ── Day 11 – Jun 22 ──────────────────────────────────────────────────────
+  { id:"arg-aut", day:11, date:"Jun 22", kickoff:"2026-06-22T17:00:00Z", time:"19:00", home:{name:"Argentina",    flag:"🇦🇷",pct:60}, draw:{pct:22}, away:{name:"Austria",     flag:"🇦🇹",pct:18} },
+  { id:"fra-irq", day:11, date:"Jun 22", kickoff:"2026-06-22T21:00:00Z", time:"23:00", home:{name:"France",       flag:"🇫🇷",pct:72}, draw:{pct:18}, away:{name:"Iraq",        flag:"🇮🇶",pct:10} },
+  { id:"nor-sen", day:11, date:"Jun 22", kickoff:"2026-06-23T00:00:00Z", time:"02:00", home:{name:"Norway",       flag:"🇳🇴",pct:52}, draw:{pct:25}, away:{name:"Senegal",     flag:"🇸🇳",pct:23} },
+  { id:"jor-alg", day:11, date:"Jun 22", kickoff:"2026-06-23T03:00:00Z", time:"05:00", home:{name:"Jordan",       flag:"🇯🇴",pct:30}, draw:{pct:28}, away:{name:"Algeria",     flag:"🇩🇿",pct:42} },
+  // ── Day 12 – Jun 23 ──────────────────────────────────────────────────────
+  { id:"por-uzb", day:12, date:"Jun 23", kickoff:"2026-06-23T17:00:00Z", time:"19:00", home:{name:"Portugal",     flag:"🇵🇹",pct:72}, draw:{pct:18}, away:{name:"Uzbekistan",  flag:"🇺🇿",pct:10} },
+  { id:"eng-gha", day:12, date:"Jun 23", kickoff:"2026-06-23T20:00:00Z", time:"22:00", home:{name:"England",      flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pct:58}, draw:{pct:22}, away:{name:"Ghana",       flag:"🇬🇭",pct:20} },
+  { id:"pan-cro", day:12, date:"Jun 23", kickoff:"2026-06-23T23:00:00Z", time:"01:00", home:{name:"Panama",       flag:"🇵🇦",pct:22}, draw:{pct:28}, away:{name:"Croatia",     flag:"🇭🇷",pct:50} },
+  { id:"col-cod", day:12, date:"Jun 23", kickoff:"2026-06-24T02:00:00Z", time:"04:00", home:{name:"Colombia",     flag:"🇨🇴",pct:70}, draw:{pct:18}, away:{name:"Congo DR",    flag:"🇨🇩",pct:12} },
+  // ── Day 13 – Jun 24 (Matchday 3 starts — simultaneous kickoffs) ──────────
+  { id:"bih-qat", day:13, date:"Jun 24", kickoff:"2026-06-24T19:00:00Z", time:"21:00", home:{name:"Bosnia",       flag:"🇧🇦",pct:45}, draw:{pct:28}, away:{name:"Qatar",       flag:"🇶🇦",pct:27} },
+  { id:"sui-can", day:13, date:"Jun 24", kickoff:"2026-06-24T19:00:00Z", time:"21:00", home:{name:"Switzerland",  flag:"🇨🇭",pct:52}, draw:{pct:26}, away:{name:"Canada",      flag:"🇨🇦",pct:22} },
+  { id:"mar-hai", day:13, date:"Jun 24", kickoff:"2026-06-24T22:00:00Z", time:"00:00", home:{name:"Morocco",      flag:"🇲🇦",pct:70}, draw:{pct:18}, away:{name:"Haiti",       flag:"🇭🇹",pct:12} },
+  { id:"sco-bra", day:13, date:"Jun 24", kickoff:"2026-06-24T22:00:00Z", time:"00:00", home:{name:"Scotland",     flag:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pct:22}, draw:{pct:25}, away:{name:"Brazil",      flag:"🇧🇷",pct:53} },
+  { id:"cze-mex", day:13, date:"Jun 24", kickoff:"2026-06-25T01:00:00Z", time:"03:00", home:{name:"Czechia",      flag:"🇨🇿",pct:42}, draw:{pct:28}, away:{name:"Mexico",      flag:"🇲🇽",pct:30} },
+  { id:"rsa-kor", day:13, date:"Jun 24", kickoff:"2026-06-25T01:00:00Z", time:"03:00", home:{name:"South Africa", flag:"🇿🇦",pct:28}, draw:{pct:28}, away:{name:"South Korea", flag:"🇰🇷",pct:44} },
+  // ── Day 14 – Jun 25 ──────────────────────────────────────────────────────
+  { id:"cur-civ", day:14, date:"Jun 25", kickoff:"2026-06-25T20:00:00Z", time:"22:00", home:{name:"Curaçao",      flag:"🇨🇼",pct:25}, draw:{pct:28}, away:{name:"Ivory Coast", flag:"🇨🇮",pct:47} },
+  { id:"ecu-ger", day:14, date:"Jun 25", kickoff:"2026-06-25T20:00:00Z", time:"22:00", home:{name:"Ecuador",      flag:"🇪🇨",pct:15}, draw:{pct:22}, away:{name:"Germany",     flag:"🇩🇪",pct:63} },
+  { id:"jpn-swe", day:14, date:"Jun 25", kickoff:"2026-06-25T23:00:00Z", time:"01:00", home:{name:"Japan",        flag:"🇯🇵",pct:42}, draw:{pct:28}, away:{name:"Sweden",      flag:"🇸🇪",pct:30} },
+  { id:"tun-ned", day:14, date:"Jun 25", kickoff:"2026-06-25T23:00:00Z", time:"01:00", home:{name:"Tunisia",      flag:"🇹🇳",pct:22}, draw:{pct:25}, away:{name:"Netherlands", flag:"🇳🇱",pct:53} },
+  { id:"par-aus", day:14, date:"Jun 25", kickoff:"2026-06-26T02:00:00Z", time:"04:00", home:{name:"Paraguay",     flag:"🇵🇾",pct:38}, draw:{pct:28}, away:{name:"Australia",   flag:"🇦🇺",pct:34} },
+  { id:"tur-usa", day:14, date:"Jun 25", kickoff:"2026-06-26T02:00:00Z", time:"04:00", home:{name:"Türkiye",      flag:"🇹🇷",pct:30}, draw:{pct:28}, away:{name:"USA",         flag:"🇺🇸",pct:42} },
+  // ── Day 15 – Jun 26 ──────────────────────────────────────────────────────
+  { id:"nor-fra", day:15, date:"Jun 26", kickoff:"2026-06-26T19:00:00Z", time:"21:00", home:{name:"Norway",       flag:"🇳🇴",pct:28}, draw:{pct:25}, away:{name:"France",      flag:"🇫🇷",pct:47} },
+  { id:"sen-irq", day:15, date:"Jun 26", kickoff:"2026-06-26T19:00:00Z", time:"21:00", home:{name:"Senegal",      flag:"🇸🇳",pct:48}, draw:{pct:28}, away:{name:"Iraq",        flag:"🇮🇶",pct:24} },
+  { id:"cpv-ksa", day:15, date:"Jun 26", kickoff:"2026-06-27T00:00:00Z", time:"02:00", home:{name:"Cape Verde",   flag:"🇨🇻",pct:25}, draw:{pct:28}, away:{name:"Saudi Arabia",flag:"🇸🇦",pct:47} },
+  { id:"uru-esp", day:15, date:"Jun 26", kickoff:"2026-06-27T00:00:00Z", time:"02:00", home:{name:"Uruguay",      flag:"🇺🇾",pct:22}, draw:{pct:28}, away:{name:"Spain",       flag:"🇪🇸",pct:50} },
+  { id:"egy-irn", day:15, date:"Jun 26", kickoff:"2026-06-27T03:00:00Z", time:"05:00", home:{name:"Egypt",        flag:"🇪🇬",pct:38}, draw:{pct:28}, away:{name:"Iran",        flag:"🇮🇷",pct:34} },
+  { id:"nzl-bel", day:15, date:"Jun 26", kickoff:"2026-06-27T03:00:00Z", time:"05:00", home:{name:"New Zealand",  flag:"🇳🇿",pct:20}, draw:{pct:22}, away:{name:"Belgium",     flag:"🇧🇪",pct:58} },
+  // ── Day 16 – Jun 27 ──────────────────────────────────────────────────────
+  { id:"cro-gha", day:16, date:"Jun 27", kickoff:"2026-06-27T21:00:00Z", time:"23:00", home:{name:"Croatia",      flag:"🇭🇷",pct:48}, draw:{pct:28}, away:{name:"Ghana",       flag:"🇬🇭",pct:24} },
+  { id:"pan-eng", day:16, date:"Jun 27", kickoff:"2026-06-27T21:00:00Z", time:"23:00", home:{name:"Panama",       flag:"🇵🇦",pct:15}, draw:{pct:22}, away:{name:"England",     flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pct:63} },
+  { id:"col-por", day:16, date:"Jun 27", kickoff:"2026-06-27T23:30:00Z", time:"01:30", home:{name:"Colombia",     flag:"🇨🇴",pct:42}, draw:{pct:28}, away:{name:"Portugal",    flag:"🇵🇹",pct:30} },
+  { id:"cod-uzb", day:16, date:"Jun 27", kickoff:"2026-06-27T23:30:00Z", time:"01:30", home:{name:"Congo DR",     flag:"🇨🇩",pct:40}, draw:{pct:28}, away:{name:"Uzbekistan",  flag:"🇺🇿",pct:32} },
+  { id:"alg-aut", day:16, date:"Jun 27", kickoff:"2026-06-28T02:00:00Z", time:"04:00", home:{name:"Algeria",      flag:"🇩🇿",pct:38}, draw:{pct:28}, away:{name:"Austria",     flag:"🇦🇹",pct:34} },
+  { id:"jor-arg", day:16, date:"Jun 27", kickoff:"2026-06-28T02:00:00Z", time:"04:00", home:{name:"Jordan",       flag:"🇯🇴",pct:12}, draw:{pct:22}, away:{name:"Argentina",   flag:"🇦🇷",pct:66} },
+];
+
+// Build lookup map for ResultsTab
+const WC_META: Record<string, WCMatch> = Object.fromEntries(WC_MATCHES.map(m => [m.id, m]));
+
+// Tournament day helpers
+function getTournamentDay(): number {
+  const start = Date.UTC(2026, 5, 12); // Jun 12 UTC
+  const now   = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  return Math.max(1, Math.min(16, Math.floor((now - start) / 86400000) + 1));
 }
-
-// ── Data ──────────────────────────────────────────────────────────────────────
-const MATCHES: Match[] = [
-  { id: "gha-pan", day: 18, time: "3:00 PM ET",  gw: "GW.1", home: { name: "Ghana",        flag: "🇬🇭", pct: 56 }, draw: { pct: 26 }, away: { name: "Panama",       flag: "🇵🇦", pct: 18 } },
-  { id: "uzb-col", day: 18, time: "6:00 PM ET",  gw: "GW.1", home: { name: "Uzbekistan",   flag: "🇺🇿", pct: 8  }, draw: { pct: 22 }, away: { name: "Colombia",     flag: "🇨🇴", pct: 70 } },
-  { id: "cze-rsa", day: 18, time: "9:00 PM ET",  gw: "GW.1", home: { name: "Czechia",      flag: "🇨🇿", pct: 52 }, draw: { pct: 28 }, away: { name: "South Africa", flag: "🇿🇦", pct: 20 } },
-  { id: "usa-bol", day: 19, time: "12:00 PM ET", gw: "GW.1", home: { name: "USA",           flag: "🇺🇸", pct: 72 }, draw: { pct: 18 }, away: { name: "Bolivia",      flag: "🇧🇴", pct: 10 } },
-  { id: "ecu-ven", day: 19, time: "3:00 PM ET",  gw: "GW.1", home: { name: "Ecuador",      flag: "🇪🇨", pct: 48 }, draw: { pct: 28 }, away: { name: "Venezuela",    flag: "🇻🇪", pct: 24 } },
-  { id: "mex-cam", day: 19, time: "6:00 PM ET",  gw: "GW.1", home: { name: "Mexico",       flag: "🇲🇽", pct: 65 }, draw: { pct: 22 }, away: { name: "Cameroon",     flag: "🇨🇲", pct: 13 } },
-  { id: "fra-aut", day: 20, time: "3:00 PM ET",  gw: "GW.2", home: { name: "France",       flag: "🇫🇷", pct: 68 }, draw: { pct: 20 }, away: { name: "Austria",      flag: "🇦🇹", pct: 12 } },
-  { id: "bra-arg", day: 20, time: "9:00 PM ET",  gw: "GW.2", home: { name: "Brazil",       flag: "🇧🇷", pct: 38 }, draw: { pct: 26 }, away: { name: "Argentina",    flag: "🇦🇷", pct: 36 } },
-  { id: "eng-irl", day: 21, time: "3:00 PM ET",  gw: "GW.2", home: { name: "England",      flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", pct: 62 }, draw: { pct: 22 }, away: { name: "Ireland",      flag: "🇮🇪", pct: 16 } },
-  { id: "esp-mar", day: 21, time: "6:00 PM ET",  gw: "GW.2", home: { name: "Spain",        flag: "🇪🇸", pct: 58 }, draw: { pct: 24 }, away: { name: "Morocco",      flag: "🇲🇦", pct: 18 } },
-];
-
-const PAST: PastMatch[] = [
-  { id: "mex-rsa", day: 17, date: "Jun 17", gw: "GW.1", home: { name: "Mexico",      flag: "🇲🇽", score: 2, pct: 58 }, draw: { pct: 24 }, away: { name: "South Africa", flag: "🇿🇦", score: 0, pct: 18 }, myPick: null },
-  { id: "kor-cze", day: 17, date: "Jun 17", gw: "GW.1", home: { name: "South Korea", flag: "🇰🇷", score: 2, pct: 44 }, draw: { pct: 28 }, away: { name: "Czechia",      flag: "🇨🇿", score: 1, pct: 28 }, myPick: null },
-  { id: "can-bih", day: 17, date: "Jun 17", gw: "GW.1", home: { name: "Canada",      flag: "🇨🇦", score: 1, pct: 52 }, draw: { pct: 26 }, away: { name: "Bosnia",       flag: "🇧🇦", score: 1, pct: 22 }, myPick: null },
-];
-
-const DAYS = [
-  { short: "Thu", num: "17", day: 17 },
-  { short: "Fri", num: "18", day: 18 },
-  { short: "Sat", num: "19", day: 19, today: true },
-  { short: "Sun", num: "20", day: 20 },
-  { short: "Mon", num: "21", day: 21 },
-  { short: "Tue", num: "22", day: 22 },
-  { short: "Wed", num: "23", day: 23 },
-];
-
-const KICKOFF: Record<string, string> = {
-  "gha-pan": "2026-06-18T15:00:00-04:00",
-  "uzb-col": "2026-06-18T18:00:00-04:00",
-  "cze-rsa": "2026-06-18T21:00:00-04:00",
-  "usa-bol": "2026-06-19T12:00:00-04:00",
-  "ecu-ven": "2026-06-19T15:00:00-04:00",
-  "mex-cam": "2026-06-19T18:00:00-04:00",
-  "fra-aut": "2026-06-20T15:00:00-04:00",
-  "bra-arg": "2026-06-20T21:00:00-04:00",
-  "eng-irl": "2026-06-21T15:00:00-04:00",
-  "esp-mar": "2026-06-21T18:00:00-04:00",
-};
+const TODAY_TOURNEY_DAY = getTournamentDay();
 
 const AVATARS = ["⚽", "🦁", "🐯", "🦊", "🐺", "🦅", "🐉", "🦄"];
-const LEAGUE_CODE = "SV-2026";
 
 // ── Shared: flag circle ───────────────────────────────────────────────────────
 function Flag({ emoji, size = 72 }: { emoji: string; size?: number }) {
@@ -100,24 +162,31 @@ function Flag({ emoji, size = 72 }: { emoji: string; size?: number }) {
 }
 
 // ── Shared: day strip ─────────────────────────────────────────────────────────
+const TOURNEY_DAYS = Array.from({ length: 16 }, (_, i) => {
+  const d = new Date(Date.UTC(2026, 5, 12 + i)); // Jun 12 + i
+  const date = d.toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
+  return { day: i + 1, date };
+});
+
 function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: number) => void }) {
   return (
     <div className="no-scrollbar" style={{
       display: "flex", gap: 4, overflowX: "auto", flexShrink: 0,
       padding: "8px 10px", background: P.white, borderBottom: `1px solid ${P.border}`,
     }}>
-      {DAYS.map(({ short, num, day, today }) => {
-        const active = day === selected;
+      {TOURNEY_DAYS.map(({ day }) => {
+        const active  = day === selected;
+        const isToday = day === TODAY_TOURNEY_DAY;
         return (
           <button key={day} onClick={() => onSelect(day)} style={{
             display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-            minWidth: 48, padding: "8px 5px", border: "none", cursor: "pointer",
+            minWidth: 48, padding: "9px 6px", border: "none", cursor: "pointer",
             borderRadius: 11, background: active ? P.blueBg : "transparent",
-            color: active ? P.blue : P.muted,
             boxShadow: active ? "inset 0 0 0 1px #dce0ff" : "none",
           }}>
-            <span style={{ fontSize: 10, fontWeight: 650 }}>{today ? "Today" : short}</span>
-            <strong style={{ fontSize: 15, fontWeight: 800, color: active ? P.blue : P.ink }}>{num}</strong>
+            <strong style={{ fontSize: 13, fontWeight: 800, color: active ? P.blue : P.ink }}>
+              {isToday ? "Today" : `Day ${day}`}
+            </strong>
           </button>
         );
       })}
@@ -129,9 +198,9 @@ function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: numb
 function Countdown({ day }: { day: number }) {
   const [s, setS] = useState(0);
   useEffect(() => {
-    const targets = MATCHES
-      .filter(m => m.day === day && KICKOFF[m.id])
-      .map(m => new Date(KICKOFF[m.id]).getTime())
+    const targets = WC_MATCHES
+      .filter(m => m.day === day)
+      .map(m => new Date(m.kickoff).getTime())
       .filter(t => t > Date.now())
       .sort((a, b) => a - b);
     const target = targets[0];
@@ -162,7 +231,7 @@ function Countdown({ day }: { day: number }) {
 
 // ── Picks: match card ─────────────────────────────────────────────────────────
 function MatchCard({ match: m, pick, onPick }: {
-  match: Match;
+  match: WCMatch;
   pick: { home: ScoreVal; away: ScoreVal };
   onPick: (h: ScoreVal, a: ScoreVal) => void;
 }) {
@@ -205,7 +274,7 @@ function MatchCard({ match: m, pick, onPick }: {
       boxShadow: "0 5px 18px rgba(31,39,84,0.055)", marginBottom: 10, overflow: "hidden",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 13px 0", color: P.muted, fontSize: 11 }}>
-        <span>{m.gw} · {m.time}</span>
+        <span>{m.date} · {m.time} CET</span>
         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c2c5d0", display: "inline-block" }} />
           Open
@@ -247,7 +316,7 @@ function MatchCard({ match: m, pick, onPick }: {
 
 // ── Picks tab ─────────────────────────────────────────────────────────────────
 function PicksTab({ userId }: { userId: string | null }) {
-  const [day, setDay] = useState(19);
+  const [day, setDay] = useState(() => TODAY_TOURNEY_DAY);
   const [picks, setPicks] = useState<Record<string, { home: ScoreVal; away: ScoreVal }>>({});
   const [saved, setSaved] = useState(false);
 
@@ -260,7 +329,7 @@ function PicksTab({ userId }: { userId: string | null }) {
     });
   }, [userId]);
 
-  const dayMatches = MATCHES.filter(m => m.day === day);
+  const dayMatches = WC_MATCHES.filter(m => m.day === day);
   const filled = dayMatches.filter(m => { const p = picks[m.id]; return p && p.home !== "" && p.away !== ""; }).length;
 
   async function save() {
@@ -321,39 +390,90 @@ function PicksTab({ userId }: { userId: string | null }) {
 }
 
 // ── Results tab ───────────────────────────────────────────────────────────────
-function ResultsTab() {
-  const [day, setDay] = useState(17);
-  const dayResults = PAST.filter(m => m.day === day);
+function ResultsTab({ userId }: { userId: string | null }) {
+  const [day, setDay] = useState(() => TODAY_TOURNEY_DAY);
+  const [results, setResults]   = useState<Record<string, { home: number; away: number; is_final: boolean }>>({});
+  const [picks, setPicks]       = useState<Record<string, { home: number; away: number }>>({});
+  const [syncing, setSyncing]   = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+
+  async function sync(silent = false) {
+    if (!silent) setSyncing(true);
+    try { await fetch("/api/sync-scores"); } catch {}
+    const res = await getResults();
+    const map: Record<string, { home: number; away: number; is_final: boolean }> = {};
+    res.forEach(r => { map[r.match_id] = { home: r.home_score, away: r.away_score, is_final: r.is_final }; });
+    setResults(map);
+    setLastSync(new Date());
+    if (!silent) setSyncing(false);
+  }
+
+  useEffect(() => {
+    sync(true);
+    if (userId) {
+      getUserPicks(userId).then(ps => {
+        const m: Record<string, { home: number; away: number }> = {};
+        ps.forEach(p => { m[p.match_id] = { home: p.home_score, away: p.away_score }; });
+        setPicks(m);
+      });
+    }
+    const interval = setInterval(() => sync(true), 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const dayMatches = WC_MATCHES.filter(m => m.day === day);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <DayStrip selected={day} onSelect={setDay} />
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas, padding: "12px 12px 0" }}>
-        {dayResults.length === 0 ? (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 2px" }}>
+        <span style={{ fontSize: 11, color: P.muted }}>
+          {lastSync ? `Updated ${lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading…"}
+        </span>
+        <button onClick={() => sync(false)} disabled={syncing}
+          style={{ background: "none", border: "none", fontSize: 11, color: P.blue, fontWeight: 700, cursor: "pointer", padding: "2px 6px" }}>
+          {syncing ? "Syncing…" : "↻ Refresh"}
+        </button>
+      </div>
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas, padding: "8px 12px 0" }}>
+        {dayMatches.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 240, gap: 12, color: P.muted }}>
-            <span style={{ fontSize: 40 }}>⏳</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>No results yet</span>
+            <span style={{ fontSize: 40 }}>📅</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>No matches this day</span>
           </div>
-        ) : dayResults.map(m => {
-          const homeWon = m.home.score > m.away.score;
-          const awayWon = m.away.score > m.home.score;
+        ) : dayMatches.map(m => {
+          const id     = m.id;
+          const result = results[id];
+          const pick   = picks[id];
+          if (!result) {
+            return (
+              <div key={id} style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, marginBottom: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 22 }}>{m.home.flag}</span>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.muted }}>{m.home.name} vs {m.away.name}</span>
+                <span style={{ fontSize: 22 }}>{m.away.flag}</span>
+                <span style={{ fontSize: 11, color: P.muted, marginLeft: 6 }}>⏳ {m.time} CET</span>
+              </div>
+            );
+          }
+          const homeWon = result.home > result.away;
+          const awayWon = result.away > result.home;
           const isDraw  = !homeWon && !awayWon;
-          const exact   = !!m.myPick && m.myPick.home === m.home.score && m.myPick.away === m.away.score;
-          const correct = !exact && !!m.myPick && (
-            (homeWon && m.myPick.home > m.myPick.away) ||
-            (awayWon && m.myPick.away > m.myPick.home) ||
-            (isDraw  && m.myPick.home === m.myPick.away)
+          const exact   = !!pick && pick.home === result.home && pick.away === result.away;
+          const correct = !exact && !!pick && (
+            (homeWon && pick.home > pick.away) ||
+            (awayWon && pick.away > pick.home) ||
+            (isDraw  && pick.home === pick.away)
           );
           const winPct    = homeWon ? m.home.pct : awayWon ? m.away.pct : m.draw.pct;
           const earnedPts = exact ? pts(winPct) * 3 : correct ? pts(winPct) : 0;
 
           return (
-            <div key={m.id} style={{
-              background: P.white, borderRadius: 16, border: `1px solid ${P.border}`,
-              boxShadow: "0 5px 18px rgba(31,39,84,0.055)", marginBottom: 10, overflow: "hidden",
-            }}>
-              <div style={{ padding: "10px 13px 0", display: "flex", gap: 6, alignItems: "center", color: P.muted, fontSize: 11 }}>
-                <span>🏆</span><span>{m.gw} · {m.date}</span>
+            <div key={id} style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, boxShadow: "0 5px 18px rgba(31,39,84,0.055)", marginBottom: 10, overflow: "hidden" }}>
+              <div style={{ padding: "10px 13px 0", display: "flex", gap: 6, alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 11, color: P.muted }}>{m.date} · {m.time} CET</span>
+                {!result.is_final && <span style={{ fontSize: 10, fontWeight: 800, color: P.red, padding: "2px 7px", borderRadius: 6, background: "rgba(223,83,83,0.1)" }}>LIVE</span>}
+                {result.is_final && <span style={{ fontSize: 10, fontWeight: 700, color: P.muted }}>FT</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", padding: "10px 12px 14px", gap: 8 }}>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
@@ -361,23 +481,20 @@ function ResultsTab() {
                   <span style={{ fontSize: 12, fontWeight: 650, color: P.ink, textAlign: "center" }}>{m.home.name}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                  <div style={{
-                    padding: "8px 20px", borderRadius: 10, background: P.gray,
-                    border: `2px solid ${exact ? P.blue : correct ? P.green : P.border}`,
-                  }}>
+                  <div style={{ padding: "8px 20px", borderRadius: 10, background: P.gray, border: `2px solid ${exact ? P.blue : correct ? P.green : P.border}` }}>
                     <span style={{ fontSize: 22, fontWeight: 900, color: P.ink, fontVariantNumeric: "tabular-nums" }}>
-                      {m.home.score} : {m.away.score}
+                      {result.home} : {result.away}
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {m.myPick && <span style={{ fontSize: 11, color: P.muted }}>Pick: {m.myPick.home}–{m.myPick.away}</span>}
+                    {pick && <span style={{ fontSize: 11, color: P.muted }}>Pick: {pick.home}–{pick.away}</span>}
                     {earnedPts > 0 && (
                       <div style={{ padding: "3px 10px", borderRadius: 8, background: exact ? P.blue : P.greenBg, border: `1px solid ${exact ? P.blue : P.green}` }}>
                         <span style={{ fontSize: 12, fontWeight: 800, color: exact ? "#fff" : P.green }}>+{earnedPts} pts {exact ? "🎯" : "✓"}</span>
                       </div>
                     )}
-                    {!earnedPts && m.myPick && <span style={{ fontSize: 11, color: P.red }}>✗ miss</span>}
-                    {!m.myPick && <span style={{ fontSize: 11, color: P.muted }}>No pick</span>}
+                    {!earnedPts && pick && <span style={{ fontSize: 11, color: P.red }}>✗ miss</span>}
+                    {!pick && <span style={{ fontSize: 11, color: P.muted }}>No pick</span>}
                   </div>
                 </div>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
@@ -385,18 +502,6 @@ function ResultsTab() {
                   <span style={{ fontSize: 12, fontWeight: 650, color: P.ink, textAlign: "center" }}>{m.away.name}</span>
                 </div>
               </div>
-              {m.myPick && (
-                <div style={{ display: "flex", gap: 20, padding: "8px 16px 12px", borderTop: `1px solid ${P.border}` }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 9, color: P.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>My odd</p>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: P.ink }}>{earnedPts > 0 ? pts(winPct) : "–"}</p>
-                  </div>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 9, color: P.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>My prediction</p>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: P.ink }}>{m.myPick.home} – {m.myPick.away}</p>
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
@@ -407,17 +512,45 @@ function ResultsTab() {
 }
 
 // ── Ranking tab ───────────────────────────────────────────────────────────────
-function RankingTab({ user }: { user: { name: string; avatar: string } }) {
+function RankingTab({ league, user, authUserId, onJoinLeague }: { league: League | null; user: { name: string; avatar: string }; authUserId: string; onJoinLeague: () => void }) {
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
-  useEffect(() => { getLeaderboard().then(setBoard); }, []);
+  useEffect(() => { if (league) getLeagueLeaderboard(league.id).then(setBoard); }, [league?.id]);
+
+  if (!league) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 14, padding: 32, background: P.canvas }}>
+      <span style={{ fontSize: 52 }}>🏆</span>
+      <p style={{ fontSize: 16, fontWeight: 800, color: P.ink, textAlign: "center", margin: 0 }}>No league yet</p>
+      <p style={{ fontSize: 13, color: P.muted, textAlign: "center", margin: 0, lineHeight: 1.55 }}>Create or join a league to compete with friends and see who tops the board.</p>
+      <button onClick={onJoinLeague} style={{ padding: "13px 28px", borderRadius: 12, border: "none", background: P.blue, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+        Set up my league →
+      </button>
+    </div>
+  );
+
+  const paidCount  = board.filter(p => p.paid).length;
+  const potEuros   = (league.stake_cents * paidCount) / 100;
+  const stakeEuros = league.stake_cents / 100;
+
+  function pnl(rank: number) {
+    if (paidCount === 0 || stakeEuros === 0) return null;
+    return rank === 1
+      ? { val: potEuros - stakeEuros, pos: true }
+      : { val: -stakeEuros, pos: false };
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas }}>
+      {paidCount > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", background: P.blue }}>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>🏆 Prize pool</span>
+          <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{potEuros % 1 === 0 ? potEuros.toFixed(0) : potEuros.toFixed(2)}€</span>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>{paidCount} players · {stakeEuros.toFixed(0)}€ each</span>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: `1px solid ${P.border}`, background: P.white }}>
         <span style={{ flex: 1, fontSize: 10, color: P.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>Players</span>
-        <span style={{ width: 44, textAlign: "center", fontSize: 10, color: P.muted, textTransform: "uppercase", fontWeight: 800 }}>Good</span>
-        <span style={{ width: 44, textAlign: "center", fontSize: 10, color: P.muted, textTransform: "uppercase", fontWeight: 800 }}>Exact</span>
-        <span style={{ width: 56, textAlign: "right", fontSize: 10, color: P.blue, textTransform: "uppercase", fontWeight: 800 }}>Pts</span>
+        <span style={{ width: 52, textAlign: "right", fontSize: 10, color: P.blue, textTransform: "uppercase", fontWeight: 800 }}>Pts</span>
+        {paidCount > 0 && <span style={{ width: 60, textAlign: "right", fontSize: 10, color: P.muted, textTransform: "uppercase", fontWeight: 800 }}>P&amp;L</span>}
       </div>
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
         {board.length === 0 ? (
@@ -426,19 +559,28 @@ function RankingTab({ user }: { user: { name: string; avatar: string } }) {
             <span style={{ fontSize: 14, fontWeight: 600 }}>No picks yet</span>
           </div>
         ) : board.map((p, i) => {
-          const isMe = p.name === user.name;
+          const isMe = p.user_id === authUserId;
+          const pl   = pnl(i + 1);
           return (
-            <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${P.border}`, background: isMe ? P.blueBg : P.white }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, width: 20, color: i === 0 ? P.blue : P.muted }}>{i + 1}</span>
-                <div style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0, background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: P.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {p.name}{isMe && <span style={{ fontSize: 11, color: P.blue, marginLeft: 6 }}>· you</span>}
+            <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${P.border}`, background: isMe ? P.blueBg : P.white }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, width: 22, flexShrink: 0 }}>
+                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : <span style={{ color: P.muted }}>{i + 1}</span>}
                 </span>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: P.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {p.name}{isMe && <span style={{ fontSize: 11, color: P.blue, marginLeft: 5 }}>· you</span>}
+                  </div>
+                  {!p.paid && <div style={{ fontSize: 10, color: P.red }}>⏳ payment pending</div>}
+                </div>
               </div>
-              <span style={{ width: 44, textAlign: "center", fontSize: 13, color: P.muted }}>{p.good_picks}</span>
-              <span style={{ width: 44, textAlign: "center", fontSize: 13, color: P.muted }}>{p.exact_picks}</span>
-              <span style={{ width: 56, textAlign: "right", fontSize: 17, fontWeight: 900, color: P.blue }}>{p.total_pts}</span>
+              <span style={{ width: 52, textAlign: "right", fontSize: 16, fontWeight: 900, color: P.blue }}>{p.total_pts}</span>
+              {paidCount > 0 && (
+                <span style={{ width: 60, textAlign: "right", fontSize: 13, fontWeight: 800, color: pl ? (pl.pos ? P.green : P.red) : P.muted }}>
+                  {pl ? `${pl.pos ? "+" : ""}${pl.val.toFixed(0)}€` : "–"}
+                </span>
+              )}
             </div>
           );
         })}
@@ -447,69 +589,175 @@ function RankingTab({ user }: { user: { name: string; avatar: string } }) {
   );
 }
 
-// ── League tab ────────────────────────────────────────────────────────────────
-function ProfileTab({ user }: { user: { name: string; avatar: string } }) {
+// ── Profile tab ───────────────────────────────────────────────────────────────
+function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfileUpdate, onJoinLeague }: {
+  league: League | null;
+  membership: LeagueMember | null;
+  user: { name: string; avatar: string };
+  authUserId: string;
+  onSignOut: () => void;
+  onProfileUpdate: (name: string, avatar: string) => void;
+  onJoinLeague: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
-  useEffect(() => { getLeaderboard().then(setBoard); }, []);
+  const [members, setMembers] = useState<(LeagueMember & { name: string; avatar: string })[]>([]);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(user.name);
+  const [savingName, setSavingName] = useState(false);
+  const [pickingAvatar, setPickingAvatar] = useState(false);
+  const isCreator = league ? league.creator_id === authUserId : false;
 
-  const myRank = board.findIndex(p => p.name === user.name) + 1;
+  useEffect(() => {
+    if (!league) return;
+    getLeagueLeaderboard(league.id).then(setBoard);
+    if (isCreator) getLeagueMembers(league.id).then(setMembers);
+  }, [league?.id, isCreator]);
+
+  const myRank = board.findIndex(p => p.user_id === authUserId) + 1;
+
+  async function saveName() {
+    if (!nameInput.trim() || nameInput.trim() === user.name) { setEditingName(false); return; }
+    setSavingName(true);
+    await upsertProfile(authUserId, nameInput.trim(), user.avatar);
+    onProfileUpdate(nameInput.trim(), user.avatar);
+    setSavingName(false);
+    setEditingName(false);
+  }
+
+  async function saveAvatar(av: string) {
+    await upsertProfile(authUserId, user.name, av);
+    onProfileUpdate(user.name, av);
+    setPickingAvatar(false);
+  }
 
   function share() {
-    if (navigator.share) {
-      navigator.share({ title: "ScoreVault", text: `Join my WC2026 picks league! Code: ${LEAGUE_CODE}`, url: window.location.href }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(LEAGUE_CODE);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    if (!league) return;
+    const url = "https://scorevault.org";
+    const text = `Join my ScoreVault league! Code: ${league.code} · Stake: ${(league.stake_cents / 100).toFixed(0)}€\n${url}`;
+    if (navigator.share) navigator.share({ title: "ScoreVault", text }).catch(() => {});
+    else { navigator.clipboard.writeText(league.code); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  }
+
+  async function togglePaid(m: LeagueMember & { name: string; avatar: string }) {
+    if (!league) return;
+    setToggling(m.user_id);
+    if (m.paid) await markMemberAsUnpaid(league.id, m.user_id);
+    else        await markMemberAsPaid(league.id, m.user_id);
+    const fresh = await getLeagueMembers(league.id);
+    setMembers(fresh);
+    setToggling(null);
   }
 
   const RULES = [
-    { icon: "⚽", title: "Predict the score", body: "Enter the exact scoreline for each match before kick-off." },
-    { icon: "🔒", title: "Lock before kick-off", body: "Picks are locked once the match starts — no edits." },
-    { icon: "📊", title: "Earn points", body: "Exact score = maximum points (rarity-weighted). Correct result = partial points." },
-    { icon: "🏆", title: "Top score wins", body: "Most points at the end of the tournament takes the prize." },
+    { icon: "⚽", title: "Predict the score",  body: "Enter the exact scoreline for each match before kick-off." },
+    { icon: "🔒", title: "Lock before kick-off", body: "Picks are locked once the match starts — no edits after." },
+    { icon: "📊", title: "Earn points",          body: "Exact score = max points (rarity-weighted). Correct result = bonus." },
+    { icon: "🏆", title: "Top score wins",       body: "Most points at end of the tournament wins the full pot." },
   ];
 
   return (
     <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas }}>
 
-      {/* Profile header */}
-      <div style={{ background: `linear-gradient(to bottom, rgba(49,87,246,0.07), ${P.canvas})`, padding: "22px 16px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-        <div style={{ width: 72, height: 72, borderRadius: "50%", background: P.white, border: `3px solid ${P.blue}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, boxShadow: "0 6px 20px rgba(49,87,246,0.18)" }}>{user.avatar}</div>
-        <h2 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 900, color: P.ink }}>{user.name}</h2>
-        {myRank > 0 && <div style={{ fontSize: 12, color: P.blue, fontWeight: 700 }}>#{myRank} in your league</div>}
+      {/* Header */}
+      <div style={{ background: `linear-gradient(to bottom, rgba(49,87,246,0.07), ${P.canvas})`, padding: "20px 16px 14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <button onClick={() => setPickingAvatar(v => !v)} style={{ width: 70, height: 70, borderRadius: "50%", background: P.white, border: `3px solid ${P.blue}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, boxShadow: "0 6px 20px rgba(49,87,246,0.18)", cursor: "pointer", position: "relative" }}>
+          {user.avatar}
+          <span style={{ position: "absolute", bottom: 0, right: 0, width: 20, height: 20, borderRadius: "50%", background: P.blue, color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</span>
+        </button>
+
+        {pickingAvatar && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, width: "100%" }}>
+            {AVATARS.map(a => (
+              <button key={a} onClick={() => saveAvatar(a)}
+                style={{ fontSize: 28, padding: "10px 0", borderRadius: 12, cursor: "pointer", background: user.avatar === a ? P.blueBg : P.white, border: `2px solid ${user.avatar === a ? P.blue : P.border}` }}>
+                {a}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {editingName ? (
+          <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%" }}>
+            <input
+              autoFocus value={nameInput} onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+              style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `2px solid ${P.blue}`, fontSize: 15, fontWeight: 700, outline: "none", textAlign: "center" }}
+            />
+            <button onClick={saveName} disabled={savingName}
+              style={{ padding: "9px 14px", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontWeight: 800, cursor: "pointer", fontSize: 13 }}>
+              {savingName ? "…" : "Save"}
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => { setNameInput(user.name); setEditingName(true); }}
+            style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: P.ink }}>{user.name}</h2>
+            <span style={{ fontSize: 12, color: P.blue }}>✏️</span>
+          </button>
+        )}
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {myRank > 0 && <span style={{ fontSize: 12, color: P.blue, fontWeight: 700 }}>#{myRank} · {board.length} players</span>}
+        </div>
       </div>
 
-      <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: 12, paddingBottom: 24 }}>
+      <div style={{ padding: "0 12px 28px", display: "flex", flexDirection: "column", gap: 12 }}>
 
-        {/* League standings */}
-        <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
-          <div style={{ padding: "12px 14px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>MY LEAGUE</span>
-            <span style={{ fontSize: 11, color: P.muted }}>{board.length} player{board.length !== 1 ? "s" : ""}</span>
-          </div>
-          {board.slice(0, 5).map((p, i) => {
-            const isMe = p.name === user.name;
-            return (
-              <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${P.border}`, background: isMe ? P.blueBg : "transparent" }}>
-                <span style={{ fontSize: 12, fontWeight: 800, width: 18, color: i === 0 ? "#f59e0b" : P.muted }}>{i === 0 ? "🥇" : i + 1}</span>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, margin: "0 9px", border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.ink }}>{p.name}{isMe && <span style={{ color: P.blue, fontSize: 10, marginLeft: 5 }}>· you</span>}</span>
-                <span style={{ fontSize: 15, fontWeight: 900, color: P.blue }}>{p.total_pts} pts</span>
+        {/* League info + invite */}
+        {league ? (
+          <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${P.border}` }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: P.ink }}>{league.name}</div>
+                <div style={{ fontSize: 11, color: P.muted }}>Stake: {(league.stake_cents / 100).toFixed(0)}€ per player</div>
               </div>
-            );
-          })}
-          <div style={{ padding: "10px 14px", borderTop: `1px solid ${P.border}`, display: "flex", gap: 8 }}>
-            <button onClick={share} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1.5px solid ${P.border}`, background: "none", color: P.ink, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              + Invite
-            </button>
-            <button onClick={share} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: P.blueBg, color: P.blue, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              {copied ? "Copied!" : `Code: ${LEAGUE_CODE}`}
+              <div style={{ padding: "6px 12px", borderRadius: 8, background: P.blueBg, fontSize: 13, fontWeight: 900, color: P.blue, letterSpacing: "0.05em" }}>{league.code}</div>
+            </div>
+            <div style={{ padding: "10px 14px", display: "flex", gap: 8 }}>
+              <button onClick={share} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+                {copied ? "Copied!" : "+ Invite friends"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, padding: "16px 14px" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: P.ink, marginBottom: 4 }}>No league yet</div>
+            <div style={{ fontSize: 12, color: P.muted, marginBottom: 12, lineHeight: 1.55 }}>Create your own or join a friend's league to compete on the leaderboard.</div>
+            <button onClick={onJoinLeague} style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+              Create or join a league →
             </button>
           </div>
-        </div>
+        )}
+
+        {/* Admin: payment management (creator only) */}
+        {isCreator && (
+          <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 14 }}>🔑</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>PAYMENT ADMIN</span>
+            </div>
+            {members.length === 0 ? (
+              <div style={{ padding: "16px 14px", fontSize: 13, color: P.muted }}>No members yet.</div>
+            ) : members.map(m => (
+              <div key={m.user_id} style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${P.border}` }}>
+                <span style={{ fontSize: 22, marginRight: 10 }}>{m.avatar}</span>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.ink }}>{m.name}</span>
+                <button
+                  onClick={() => togglePaid(m)}
+                  disabled={toggling === m.user_id}
+                  style={{ padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800,
+                    background: m.paid ? P.greenBg : "rgba(223,83,83,0.1)",
+                    color: m.paid ? P.green : P.red,
+                    opacity: toggling === m.user_id ? 0.5 : 1 }}
+                >
+                  {toggling === m.user_id ? "…" : m.paid ? "✓ Paid" : "Mark paid"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* How to play */}
         <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
@@ -533,12 +781,17 @@ function ProfileTab({ user }: { user: { name: string; avatar: string } }) {
         <div style={{ borderRadius: 16, padding: 18, background: "linear-gradient(145deg, #253ccf, #3157f6 52%, #172784)", boxShadow: "0 12px 32px rgba(49,87,246,0.22)" }}>
           <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "4px 8px", borderRadius: 4, marginBottom: 12 }}>COMING SOON</div>
           <h3 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 22, color: "#fff", letterSpacing: "0.02em" }}>ScoreVault v2</h3>
-          <p style={{ margin: 0, fontSize: 12, color: "#c8d0ff", lineHeight: 1.6 }}>
+          <p style={{ margin: "0 0 0", fontSize: 12, color: "#c8d0ff", lineHeight: 1.6 }}>
             Stake USDC · on-chain scoring · real prizes.<br />
             Top scorer at WC2026 Final wins <strong style={{ color: "#fff" }}>2 seats in NYC</strong>.<br />
             Built on Base — trustless, transparent, no middleman.
           </p>
         </div>
+
+        {/* Sign out */}
+        <button onClick={onSignOut} style={{ padding: "13px 0", borderRadius: 12, border: `1px solid ${P.border}`, background: "none", color: P.muted, fontSize: 13, cursor: "pointer" }}>
+          Sign out
+        </button>
 
       </div>
     </div>
@@ -579,14 +832,15 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
 
         <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", margin: "0 0 6px", letterSpacing: "0.06em", textAlign: "center", animation: "sv-fade-up 0.5s ease 0.4s both" }}>SCOREVAULT</h1>
         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: "0 0 32px", textAlign: "center", lineHeight: 1.65, animation: "sv-fade-up 0.5s ease 0.55s both" }}>
-          {step === 1 ? "Predict scores · Climb the board · Win real prizes" : `Nice one, ${name.trim()}! Now pick your avatar`}
+          {step === 1 ? "Predict scores · Climb the board · Win the pot" : `Let's go, ${name.trim()}! Pick your avatar`}
         </p>
 
         <div style={{ width: "100%", animation: "sv-fade-up 0.45s ease 0.65s both" }}>
           {step === 1 ? (
             <>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Your username (shown on the leaderboard)</label>
               <input
-                autoFocus placeholder="Your name" value={name}
+                autoFocus placeholder="ex: Vianney, Jules, Chacha…" value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && valid && setStep(2)}
                 style={{ width: "100%", padding: "17px 20px", marginBottom: 12, borderRadius: 16, outline: "none", border: `2px solid ${valid ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.2)"}`, background: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)", fontSize: 18, fontWeight: 700, color: "#fff", transition: "border-color 0.2s" }}
@@ -869,34 +1123,263 @@ function PromoPopup({ onDismiss, onDone }: { onDismiss: () => void; onDone: () =
   );
 }
 
+// ── Auth screen ───────────────────────────────────────────────────────────────
+function AuthScreen() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+
+  async function enter() {
+    setLoading(true); setError("");
+    const { error: e } = await supabase.auth.signInAnonymously();
+    if (e) { setError("Something went wrong. Try again."); setLoading(false); }
+  }
+
+  return (
+    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+      {BG_FLOATS.map((f, i) => (
+        <span key={i} style={{ position: "absolute", top: f.top, left: f.left, fontSize: f.size, opacity: 0.1, pointerEvents: "none", userSelect: "none", animation: `sv-float ${f.dur} ease-in-out ${f.delay} infinite` }}>{f.emoji}</span>
+      ))}
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ position: "relative", marginBottom: 22 }}>
+          <div style={{ position: "absolute", inset: -8, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.3)", animation: "sv-pulse-ring 1.8s ease-out 0.6s infinite" }} />
+          <div style={{ position: "absolute", inset: -18, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.12)", animation: "sv-pulse-ring 1.8s ease-out 1.1s infinite" }} />
+          <div style={{ width: 90, height: 90, borderRadius: 26, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46, animation: "sv-pop-in 0.7s cubic-bezier(0.34,1.56,0.64,1) both", boxShadow: "0 12px 40px rgba(0,0,0,0.3)" }}>⚽</div>
+        </div>
+        <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", margin: "0 0 10px", letterSpacing: "0.06em", animation: "sv-fade-up 0.5s ease 0.3s both" }}>SCOREVAULT</h1>
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", margin: "0 0 40px", textAlign: "center", lineHeight: 1.65, animation: "sv-fade-up 0.5s ease 0.45s both" }}>
+          Predict scores · Climb the board · Win the pot
+        </p>
+        {error && <div style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(223,83,83,0.2)", color: "#fca5a5", fontSize: 13 }}>{error}</div>}
+        <div style={{ width: "100%", animation: "sv-fade-up 0.5s ease 0.55s both" }}>
+          <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
+            <button onClick={enter} disabled={loading}
+              style={{ width: "100%", padding: 18, borderRadius: 16, border: "none", background: "#fff", color: P.blue, fontSize: 17, fontWeight: 900, cursor: "pointer" }}>
+              {loading ? "Loading…" : "Play 🚀"}
+            </button>
+            {!loading && <div style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)", animation: "sv-shine 1.6s ease 0.9s infinite", pointerEvents: "none" }} />}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── League screen ─────────────────────────────────────────────────────────────
+function LeagueScreen({ userId, onJoined }: {
+  userId: string;
+  onJoined: (league: League, membership: LeagueMember) => void;
+}) {
+  const [step, setStep]             = useState<"choose" | "join" | "join-confirm" | "create" | "created">("choose");
+  const [joinCode, setJoinCode]     = useState("");
+  const [found, setFound]           = useState<League | null>(null);
+  const [leagueName, setLeagueName] = useState("");
+  const [stakeInput, setStakeInput] = useState("");
+  const [createdLeague, setCreatedLeague] = useState<League | null>(null);
+  const [copied, setCopied]         = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+
+  function genCode(name: string) {
+    const prefix = name.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4) || "SV";
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const suffix = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    return `${prefix}-${suffix}`;
+  }
+
+  async function lookup() {
+    if (!joinCode.trim()) return;
+    setLoading(true); setError("");
+    const lg = await getLeagueByCode(joinCode);
+    setLoading(false);
+    if (lg) { setFound(lg); setStep("join-confirm"); }
+    else { setError("No league found with this code. Ask your friend to check."); }
+  }
+
+  async function join() {
+    if (!found) return;
+    setLoading(true);
+    await joinLeague(found.id, userId);
+    localStorage.setItem("sv_league_code", found.code);
+    const mem = await getMyMembership(found.id, userId);
+    onJoined(found, mem ?? { league_id: found.id, user_id: userId, paid: false, paid_at: null, joined_at: new Date().toISOString() });
+  }
+
+  async function create() {
+    if (!leagueName.trim()) return;
+    setLoading(true); setError("");
+    let attempts = 0;
+    while (attempts < 5) {
+      const code = genCode(leagueName);
+      try {
+        const cents = Math.round(parseFloat(stakeInput || "0") * 100);
+        const lg = await createLeague(code, leagueName.trim(), cents, userId);
+        localStorage.setItem("sv_league_code", lg.code);
+        setCreatedLeague(lg);
+        setStep("created");
+        setLoading(false);
+        return;
+      } catch { attempts++; }
+    }
+    setError("Something went wrong. Try again.");
+    setLoading(false);
+  }
+
+  async function enterCreated() {
+    if (!createdLeague) return;
+    const mem = await getMyMembership(createdLeague.id, userId);
+    onJoined(createdLeague, mem ?? { league_id: createdLeague.id, user_id: userId, paid: true, paid_at: new Date().toISOString(), joined_at: new Date().toISOString() });
+  }
+
+  const inputSt = { width: "100%", padding: "16px 18px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 16, fontWeight: 700, outline: "none" } as const;
+  const btnSt   = { width: "100%", padding: 16, borderRadius: 14, border: "none", background: "#fff", color: P.blue, fontSize: 15, fontWeight: 900, cursor: "pointer" } as const;
+  const back    = (s: "choose") => <button onClick={() => { setStep(s); setError(""); setFound(null); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", textAlign: "center" as const, padding: "8px 0" }}>← Back</button>;
+
+  return (
+    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+      {BG_FLOATS.map((f, i) => (
+        <span key={i} style={{ position: "absolute", top: f.top, left: f.left, fontSize: f.size, opacity: 0.08, pointerEvents: "none", userSelect: "none", animation: `sv-float ${f.dur} ease-in-out ${f.delay} infinite` }}>{f.emoji}</span>
+      ))}
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 360 }}>
+        {error && <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(223,83,83,0.2)", color: "#fca5a5", fontSize: 13 }}>{error}</div>}
+
+        {step === "choose" && (
+          <>
+            <div style={{ textAlign: "center", fontSize: 42, marginBottom: 12 }}>🏆</div>
+            <h2 style={{ fontSize: 24, fontWeight: 900, color: "#fff", margin: "0 0 8px", textAlign: "center" }}>Your league</h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center", margin: "0 0 32px", lineHeight: 1.55 }}>Got a code from a friend, or starting a new league?</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <button style={btnSt} onClick={() => setStep("join")}>
+                🔗 Join a league
+              </button>
+              <button
+                onClick={() => setStep("create")}
+                style={{ width: "100%", padding: 16, borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.1)", color: "#fff", fontSize: 15, fontWeight: 900, cursor: "pointer" }}
+              >
+                ✨ Create my league
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "join" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 6px", textAlign: "center" }}>Join a league</h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center", margin: "0 0 18px" }}>Enter the code your friend shared with you.</p>
+            <input style={{ ...inputSt, textTransform: "uppercase", letterSpacing: "0.12em" }} placeholder="LEAGUE CODE" value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} onKeyDown={e => e.key === "Enter" && lookup()} autoFocus />
+            <button style={btnSt} onClick={lookup} disabled={!joinCode.trim() || loading}>{loading ? "Searching…" : "Find league →"}</button>
+            {back("choose")}
+          </div>
+        )}
+
+        {step === "join-confirm" && found && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 16px", textAlign: "center" }}>League found!</h2>
+            <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>League</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{found.name}</div>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)", marginTop: 6 }}>Stake: <strong style={{ color: "#fff" }}>{(found.stake_cents / 100).toFixed(0)}€</strong> per player</div>
+            </div>
+            <button style={btnSt} onClick={join} disabled={loading}>{loading ? "Joining…" : "Join this league →"}</button>
+            {back("choose")}
+          </div>
+        )}
+
+        {step === "create" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 6px", textAlign: "center" }}>Create my league</h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center", margin: "0 0 18px", lineHeight: 1.5 }}>Name your league and set the stake. We generate the code automatically.</p>
+            <input style={inputSt} placeholder="League name (e.g. The Crew)" value={leagueName} onChange={e => setLeagueName(e.target.value)} onKeyDown={e => e.key === "Enter" && create()} autoFocus />
+            <input style={inputSt} type="number" placeholder="Stake per player (€)" value={stakeInput} onChange={e => setStakeInput(e.target.value)} />
+            <button style={btnSt} onClick={create} disabled={!leagueName.trim() || loading}>{loading ? "Creating…" : "Create my league →"}</button>
+            {back("choose")}
+          </div>
+        )}
+
+        {step === "created" && createdLeague && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+            <div style={{ fontSize: 44, animation: "sv-pop-in 0.6s cubic-bezier(0.34,1.56,0.64,1) both" }}>🎉</div>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0, textAlign: "center" }}>{createdLeague.name}</h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center", margin: 0 }}>
+              Share this code with your crew:
+            </p>
+            <div
+              onClick={() => { navigator.clipboard.writeText(createdLeague.code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "18px 24px", borderRadius: 16, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", cursor: "pointer", width: "100%" }}
+            >
+              <span style={{ fontSize: 26, fontWeight: 900, color: "#fff", letterSpacing: "0.12em", fontFamily: "monospace" }}>{createdLeague.code}</span>
+              <span style={{ fontSize: 18 }}>{copied ? "✅" : "📋"}</span>
+            </div>
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "center", margin: 0 }}>
+              Stake: {(createdLeague.stake_cents / 100).toFixed(0)}€ · Tap the code to copy
+            </p>
+            <button style={{ ...btnSt, marginTop: 4 }} onClick={enterCreated}>Enter my league →</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Pending payment screen ────────────────────────────────────────────────────
+function PendingPaymentScreen({ league, onRefresh, onSignOut }: {
+  league: League;
+  onRefresh: () => void;
+  onSignOut: () => void;
+}) {
+  const [checking, setChecking] = useState(false);
+  async function check() { setChecking(true); await onRefresh(); setChecking(false); }
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)" }}>
+      <div style={{ fontSize: 52, marginBottom: 16 }}>⏳</div>
+      <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 10px", textAlign: "center" }}>Waiting for payment confirmation</h2>
+      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", textAlign: "center", lineHeight: 1.65, margin: "0 0 8px" }}>
+        League: <strong style={{ color: "#fff" }}>{league.name}</strong><br />
+        Stake: <strong style={{ color: "#fff" }}>{(league.stake_cents / 100).toFixed(0)}€</strong>
+      </p>
+      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center", lineHeight: 1.6, margin: "0 0 32px" }}>
+        Transfer your stake to the league organiser (bank transfer, cash, Lydia…). Once confirmed, they&apos;ll unlock your access.
+      </p>
+      <button onClick={check} disabled={checking} style={{ width: "100%", maxWidth: 320, padding: "15px 0", borderRadius: 14, border: "none", background: "#fff", color: P.blue, fontSize: 15, fontWeight: 900, cursor: "pointer", marginBottom: 12 }}>
+        {checking ? "Checking…" : "I've paid — check again"}
+      </button>
+      <button onClick={onSignOut} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 12, cursor: "pointer" }}>Sign out</button>
+    </div>
+  );
+}
+
 // ── App root ──────────────────────────────────────────────────────────────────
+type AppScreen = "loading" | "auth" | "profile_setup" | "league" | "pending" | "app";
+
 export default function App() {
-  const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("picks");
-  const [ready, setReady] = useState(false);
-  const [showPromo, setShowPromo] = useState(false);
+  const [screen, setScreen]         = useState<AppScreen>("loading");
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [profile, setProfile]       = useState<{ name: string; avatar: string } | null>(null);
+  const [league, setLeague]         = useState<League | null>(null);
+  const [membership, setMembership] = useState<LeagueMember | null>(null);
+  const [tab, setTab]               = useState<Tab>("picks");
+  const [showPromo, setShowPromo]   = useState(false);
   const [showInstall, setShowInstall] = useState(false);
+  const [showLeagueSetup, setShowLeagueSetup] = useState(false);
 
-  // "Not now" / X → snooze 24h
-  function dismissPromo() {
-    try { localStorage.setItem("sv_promo_snoozed", Date.now().toString()); } catch {}
-    setShowPromo(false);
-  }
-  // Email submitted → never show again
-  function dismissPromoDone() {
-    try { localStorage.setItem("sv_promo_done", "1"); } catch {}
-    setShowPromo(false);
-  }
+  const advance = useCallback(async (uid: string) => {
+    try {
+      const p = await getProfile(uid);
+      if (!p) { setScreen("profile_setup"); return; }
+      setProfile({ name: p.name, avatar: p.avatar });
 
-  function dismissInstall() {
-    try { localStorage.setItem("sv_install_seen", "1"); } catch {}
-    setShowInstall(false);
-  }
+      // Silently load saved league — not required to enter the app
+      const savedCode = (() => { try { return localStorage.getItem("sv_league_code"); } catch { return null; } })();
+      if (savedCode) {
+        const lg = await getLeagueByCode(savedCode);
+        if (lg) {
+          setLeague(lg);
+          let mem = await getMyMembership(lg.id, uid);
+          if (!mem) { await joinLeague(lg.id, uid); mem = await getMyMembership(lg.id, uid); }
+          setMembership(mem);
+        }
+      }
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try { const s = localStorage.getItem("sv_user"); if (s) setUser(JSON.parse(s)); } catch {}
+      setScreen("app");
       try {
         if (!localStorage.getItem("sv_promo_done")) {
           const snoozed = localStorage.getItem("sv_promo_snoozed");
@@ -904,60 +1387,82 @@ export default function App() {
           if (elapsed > 24 * 3600 * 1000) setShowPromo(true);
         }
       } catch {}
-      setReady(true);
-    }, 0);
-    ensureSession().then(setUserId).catch(() => setUserId(null));
-    return () => clearTimeout(t);
+    } catch {
+      setScreen("auth");
+    }
   }, []);
 
-  // Show install banner 5 s after user is logged in (not standalone, not already seen)
   useEffect(() => {
-    if (!user) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user) { setScreen("auth"); return; }
+      setAuthUserId(session.user.id);
+      await advance(session.user.id);
+    });
+    return () => subscription.unsubscribe();
+  }, [advance]);
+
+  useEffect(() => {
+    if (screen !== "app") return;
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     if (isStandalone) return;
     try { if (localStorage.getItem("sv_install_seen")) return; } catch {}
     const t = setTimeout(() => setShowInstall(true), 5000);
     return () => clearTimeout(t);
-  }, [user]);
+  }, [screen]);
 
-  async function onboard(name: string, avatar: string) {
-    const u = { name, avatar };
-    localStorage.setItem("sv_user", JSON.stringify(u));
-    setUser(u);
-    const uid = userId ?? (await ensureSession());
-    if (uid) { setUserId(uid); await upsertProfile(uid, name, avatar); }
+  function dismissPromo()     { try { localStorage.setItem("sv_promo_snoozed", Date.now().toString()); } catch {} setShowPromo(false); }
+  function dismissPromoDone() { try { localStorage.setItem("sv_promo_done", "1"); } catch {} setShowPromo(false); }
+  function dismissInstall()   { try { localStorage.setItem("sv_install_seen", "1"); } catch {} setShowInstall(false); }
+
+  async function doSignOut() {
+    try { localStorage.removeItem("sv_league_code"); } catch {}
+    await signOut();
+    setProfile(null); setLeague(null); setMembership(null);
+    setScreen("auth");
   }
 
-  if (!ready) return null;
-
-  if (!user) {
-    return (
-      <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
-        <div style={{ height: "min(100dvh, 932px)", width: "min(100vw, 430px)", overflow: "hidden" }}>
-          <Onboarding onDone={onboard} />
-        </div>
+  const Wrapper = ({ children, full = false }: { children: React.ReactNode; full?: boolean }) => (
+    <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: full ? "#1a2461" : P.bg }}>
+      <div style={{ height: "min(100dvh, 932px)", width: "min(100vw, 430px)", overflow: "hidden" }}>
+        {children}
       </div>
-    );
-  }
+    </div>
+  );
+
+  if (screen === "loading")       return null;
+  if (screen === "auth")          return <Wrapper full><AuthScreen /></Wrapper>;
+  if (screen === "profile_setup") return <Wrapper full><Onboarding onDone={async (name, avatar) => { if (!authUserId) return; await upsertProfile(authUserId, name, avatar); setProfile({ name, avatar }); await advance(authUserId); }} /></Wrapper>;
 
   return (
     <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
       <div style={{ position: "relative", display: "flex", flexDirection: "column", width: "min(100vw, 430px)", height: "min(100dvh, 932px)", overflow: "hidden", background: P.canvas, boxShadow: "0 28px 90px rgba(31,39,84,0.18), 0 0 0 1px rgba(30,37,72,0.05)" }}>
-        <header style={{ display: "grid", gridTemplateColumns: "92px 1fr 92px", alignItems: "center", minHeight: 64, padding: "max(0px,env(safe-area-inset-top)) 14px 0", background: P.white, borderBottom: `1px solid ${P.border}`, boxShadow: "0 4px 18px rgba(32,39,78,0.04)" }}>
-          <div />
+        <header style={{ display: "grid", gridTemplateColumns: "1fr", alignItems: "center", minHeight: 60, padding: "max(0px,env(safe-area-inset-top)) 16px 0", background: P.white, borderBottom: `1px solid ${P.border}`, boxShadow: "0 4px 18px rgba(32,39,78,0.04)" }}>
           <h1 style={{ margin: 0, textAlign: "center", fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: "-0.02em" }}>{TAB_TITLES[tab]}</h1>
-          <div />
         </header>
-
         <main style={{ position: "relative", flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {tab === "picks"   && <PicksTab userId={userId} />}
-          {tab === "results" && <ResultsTab />}
-          {tab === "ranking" && <RankingTab user={user} />}
-          {tab === "profile"  && <ProfileTab user={user} />}
+          {tab === "picks"   && <PicksTab userId={authUserId} />}
+          {tab === "results" && <ResultsTab userId={authUserId} />}
+          {tab === "ranking" && <RankingTab league={league} user={profile!} authUserId={authUserId!} onJoinLeague={() => { setShowLeagueSetup(true); }} />}
+          {tab === "profile" && <ProfileTab league={league} membership={membership} user={profile!} authUserId={authUserId!} onSignOut={doSignOut} onProfileUpdate={(name, avatar) => setProfile({ name, avatar })} onJoinLeague={() => { setShowLeagueSetup(true); }} />}
         </main>
-
         <BottomNav tab={tab} setTab={setTab} />
+
+        {/* League setup overlay — accessible from within the app */}
+        {showLeagueSetup && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 40, background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "max(env(safe-area-inset-top),14px) 16px 0", display: "flex", alignItems: "center" }}>
+              <button onClick={() => setShowLeagueSetup(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 20, padding: "7px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>← Back</button>
+            </div>
+            <div style={{ flex: 1 }}>
+              <LeagueScreen userId={authUserId!} onJoined={(lg, mem) => {
+                setLeague(lg);
+                setMembership(mem);
+                setShowLeagueSetup(false);
+              }} />
+            </div>
+          </div>
+        )}
       </div>
       {showPromo && <PromoPopup onDismiss={dismissPromo} onDone={dismissPromoDone} />}
       {showInstall && !showPromo && <InstallBanner onDismiss={dismissInstall} />}
