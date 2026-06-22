@@ -30,7 +30,7 @@ const P = {
 function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pct), 1.23)); }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Tab = "picks" | "results" | "ranking" | "profile";
+type Tab = "picks" | "results" | "deposit" | "leagues" | "profile";
 type ScoreVal = number | "";
 
 interface WCMatch {
@@ -138,6 +138,19 @@ const WC_MATCHES: WCMatch[] = [
 // Build lookup map for ResultsTab
 const WC_META: Record<string, WCMatch> = Object.fromEntries(WC_MATCHES.map(m => [m.id, m]));
 
+// Matchday (competition round) grouping — different from calendar day
+// GW1 = group stage round 1 (days 1–8), GW2 = round 2 (days 9–12), GW3 = round 3 (days 13–16)
+function getGW(day: number): 1 | 2 | 3 {
+  if (day <= 8) return 1;
+  if (day <= 12) return 2;
+  return 3;
+}
+const GW_LABELS: Record<1 | 2 | 3, string> = {
+  1: "Matchday 1  ·  Jun 12 – 19",
+  2: "Matchday 2  ·  Jun 20 – 23",
+  3: "Matchday 3  ·  Jun 24 – 27",
+};
+
 // Tournament day helpers
 function getTournamentDay(): number {
   const start = Date.UTC(2026, 5, 12); // Jun 12 UTC
@@ -145,6 +158,7 @@ function getTournamentDay(): number {
   return Math.max(1, Math.min(16, Math.floor((now - start) / 86400000) + 1));
 }
 const TODAY_TOURNEY_DAY = getTournamentDay();
+function getTodayGW(): 1 | 2 | 3 { return getGW(TODAY_TOURNEY_DAY); }
 
 const AVATARS = ["⚽", "🦁", "🐯", "🦊", "🐺", "🦅", "🐉", "🦄"];
 
@@ -230,10 +244,11 @@ function Countdown({ day }: { day: number }) {
 }
 
 // ── Picks: match card ─────────────────────────────────────────────────────────
-function MatchCard({ match: m, pick, onPick }: {
+function MatchCard({ match: m, pick, onPick, isSaved = false }: {
   match: WCMatch;
   pick: { home: ScoreVal; away: ScoreVal };
   onPick: (h: ScoreVal, a: ScoreVal) => void;
+  isSaved?: boolean;
 }) {
   const total = m.home.pct + m.draw.pct + m.away.pct;
   const hPct = Math.round((m.home.pct / total) * 100);
@@ -270,14 +285,18 @@ function MatchCard({ match: m, pick, onPick }: {
 
   return (
     <div style={{
-      background: P.white, borderRadius: 16, border: `1px solid ${P.border}`,
-      boxShadow: "0 5px 18px rgba(31,39,84,0.055)", marginBottom: 10, overflow: "hidden",
+      background: P.white, borderRadius: 16,
+      border: `2px solid ${isSaved ? P.blue : P.border}`,
+      boxShadow: isSaved ? `0 0 0 1px ${P.blueBg}, 0 5px 18px rgba(49,87,246,0.10)` : "0 5px 18px rgba(31,39,84,0.055)",
+      marginBottom: 10, overflow: "hidden", transition: "border-color 0.2s, box-shadow 0.2s",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 13px 0", color: P.muted, fontSize: 11 }}>
         <span>{m.date} · {m.time} CET</span>
         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c2c5d0", display: "inline-block" }} />
-          Open
+          {isSaved
+            ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: P.blue, display: "inline-block" }} /><span style={{ color: P.blue, fontWeight: 800 }}>Saved</span></>
+            : <><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c2c5d0", display: "inline-block" }} />Open</>
+          }
         </span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 1fr", alignItems: "center", padding: "8px 8px 14px", gap: 4 }}>
@@ -314,56 +333,124 @@ function MatchCard({ match: m, pick, onPick }: {
   );
 }
 
+// ── Sport switcher (Polymarket-style horizontal row) ─────────────────────────
+function SportSwitcher() {
+  const sports = [
+    { id: "wc26", label: "🏆 World Cup 2026", active: true },
+    { id: "nfl",  label: "🏈 NFL",            active: false },
+    { id: "nba",  label: "🏀 NBA",            active: false },
+    { id: "uso",  label: "🎾 US Open",        active: false },
+  ];
+  return (
+    <div className="no-scrollbar" style={{ display: "flex", gap: 8, overflowX: "auto", padding: "10px 12px 10px", background: P.white, borderBottom: `1px solid ${P.border}`, flexShrink: 0 }}>
+      {sports.map(s => (
+        <div key={s.id} style={{
+          padding: "6px 14px", borderRadius: 999, whiteSpace: "nowrap",
+          fontSize: 12, fontWeight: 700, flexShrink: 0,
+          background: s.active ? P.blue : P.gray,
+          color: s.active ? "#fff" : P.muted,
+          opacity: s.active ? 1 : 0.5,
+          cursor: s.active ? "default" : "not-allowed",
+        }}>{s.label}</div>
+      ))}
+    </div>
+  );
+}
+
+// ── Matchday dropdown (competition round, not calendar day) ───────────────────
+function MatchdayPicker({ selected, onSelect }: { selected: 1 | 2 | 3; onSelect: (gw: 1 | 2 | 3) => void }) {
+  return (
+    <div style={{ padding: "8px 12px", background: P.white, borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      <span style={{ fontSize: 11, color: P.muted, fontWeight: 600, flexShrink: 0 }}>Round</span>
+      <select
+        value={selected}
+        onChange={e => onSelect(Number(e.target.value) as 1 | 2 | 3)}
+        style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${P.border}`, background: P.white, fontSize: 13, fontWeight: 700, color: P.ink, cursor: "pointer", outline: "none", appearance: "auto" }}
+      >
+        {([1, 2, 3] as const).map(gw => (
+          <option key={gw} value={gw}>{GW_LABELS[gw]}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 // ── Picks tab ─────────────────────────────────────────────────────────────────
-function PicksTab({ userId }: { userId: string | null }) {
-  const [day, setDay] = useState(() => TODAY_TOURNEY_DAY);
+function PicksTab({ userId, onShowLeagueSetup }: { userId: string | null; onShowLeagueSetup: () => void }) {
+  const [gw, setGW] = useState<1 | 2 | 3>(() => getTodayGW());
   const [picks, setPicks] = useState<Record<string, { home: ScoreVal; away: ScoreVal }>>({});
-  const [saved, setSaved] = useState(false);
+  const [savedPickIds, setSavedPickIds] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
     getUserPicks(userId).then((rows: DBPick[]) => {
       const map: Record<string, { home: ScoreVal; away: ScoreVal }> = {};
-      for (const r of rows) map[r.match_id] = { home: r.home_score, away: r.away_score };
+      const ids = new Set<string>();
+      for (const r of rows) {
+        map[r.match_id] = { home: r.home_score, away: r.away_score };
+        ids.add(r.match_id);
+      }
       setPicks(map);
+      setSavedPickIds(ids);
     });
   }, [userId]);
 
-  const dayMatches = WC_MATCHES.filter(m => m.day === day);
-  const filled = dayMatches.filter(m => { const p = picks[m.id]; return p && p.home !== "" && p.away !== ""; }).length;
+  const gwMatches = WC_MATCHES.filter(m => getGW(m.day) === gw);
+  const filledMatches = gwMatches.filter(m => { const p = picks[m.id]; return p && p.home !== "" && p.away !== ""; });
+  const filled = filledMatches.length;
 
   async function save() {
     if (!userId || filled === 0) return;
-    setSaved(true);
-    const rows = dayMatches
-      .filter(m => picks[m.id]?.home !== "" && picks[m.id]?.away !== "")
-      .map(m => ({ matchId: m.id, homeScore: Number(picks[m.id].home), awayScore: Number(picks[m.id].away) }));
+    setSaving(true);
+    const rows = filledMatches.map(m => ({ matchId: m.id, homeScore: Number(picks[m.id].home), awayScore: Number(picks[m.id].away) }));
     await savePicks(userId, rows);
-    setTimeout(() => setSaved(false), 2200);
+    const newSaved = new Set(savedPickIds);
+    rows.forEach(r => newSaved.add(r.matchId));
+    setSavedPickIds(newSaved);
+    setSaving(false);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2200);
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas, position: "relative" }}>
-      <DayStrip selected={day} onSelect={setDay} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 16px 6px" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: P.muted }}>
-          Points calculated via
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="https://polymarket.com/images/brand/logo-black.png" alt="Polymarket" style={{ height: 11, opacity: 0.45, display: "block" }} />
-        </span>
+      <SportSwitcher />
+      <MatchdayPicker selected={gw} onSelect={setGW} />
+
+      {/* Create / Join / Import — private league shortcuts */}
+      <div style={{ padding: "10px 12px", background: P.white, borderBottom: `1px solid ${P.border}`, display: "flex", gap: 8, flexShrink: 0 }}>
+        {[{ label: "Create", icon: "✨" }, { label: "Join", icon: "🔗" }, { label: "Import", icon: "📥" }].map(({ label, icon }) => (
+          <button key={label} onClick={onShowLeagueSetup} style={{
+            flex: 1, padding: "9px 0", borderRadius: 10,
+            background: P.gray, border: `1px solid ${P.border}`,
+            fontSize: 11, fontWeight: 700, color: P.ink, cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+          }}>
+            <span style={{ fontSize: 15 }}>{icon}</span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 16px 4px", flexShrink: 0 }}>
+        <span style={{ fontSize: 10, color: P.muted }}>Pick value via Polymarket</span>
       </div>
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "4px 12px 0" }}>
-        {dayMatches.length === 0 ? (
+        {gwMatches.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 240, gap: 12, color: P.muted }}>
             <span style={{ fontSize: 40 }}>⚽</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>No games this day</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>No games this matchday</span>
           </div>
-        ) : dayMatches.map(m => (
+        ) : gwMatches.map(m => (
           <MatchCard
-            key={m.id} match={m}
+            key={m.id}
+            match={m}
             pick={picks[m.id] ?? { home: "", away: "" }}
             onPick={(h, a) => setPicks(prev => ({ ...prev, [m.id]: { home: h, away: a } }))}
+            isSaved={savedPickIds.has(m.id)}
           />
         ))}
         <div style={{ height: 88 }} />
@@ -374,15 +461,15 @@ function PicksTab({ userId }: { userId: string | null }) {
         background: `linear-gradient(to top, ${P.canvas} 60%, transparent)`,
         pointerEvents: "none",
       }}>
-        <button onClick={save} disabled={filled === 0 || saved} style={{
+        <button onClick={save} disabled={filled === 0 || saving} style={{
           width: "100%", minHeight: 52, borderRadius: 13, border: "none",
           cursor: filled === 0 ? "default" : "pointer", fontSize: 14, fontWeight: 750,
-          background: saved ? P.green : filled === 0 ? P.border : `linear-gradient(180deg, #4265ff, ${P.blue})`,
+          background: justSaved ? P.green : filled === 0 ? P.border : `linear-gradient(180deg, #4265ff, ${P.blue})`,
           color: filled === 0 ? P.muted : "#fff",
-          boxShadow: filled > 0 && !saved ? "0 9px 24px rgba(49,87,246,0.24)" : "none",
+          boxShadow: filled > 0 && !justSaved ? "0 9px 24px rgba(49,87,246,0.24)" : "none",
           transition: "all 0.2s", pointerEvents: "auto",
         }}>
-          {saved ? "✓ Predictions saved!" : filled === 0 ? "Enter a prediction above" : `🔒 Lock ${filled} of ${dayMatches.length} predictions`}
+          {justSaved ? "✓ Picks saved!" : saving ? "Saving…" : filled === 0 ? "Enter a prediction above" : `🔒 Lock ${filled} of ${gwMatches.length} picks`}
         </button>
       </div>
     </div>
@@ -511,85 +598,143 @@ function ResultsTab({ userId }: { userId: string | null }) {
   );
 }
 
-// ── Ranking tab ───────────────────────────────────────────────────────────────
-function RankingTab({ league, user, authUserId, onJoinLeague }: { league: League | null; user: { name: string; avatar: string }; authUserId: string; onJoinLeague: () => void }) {
+// ── Deposit tab — coming soon ─────────────────────────────────────────────────
+function DepositTab() {
+  return (
+    <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas, padding: "0 16px 32px" }}>
+      <div style={{ paddingTop: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 28 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 18, background: P.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: "0 8px 24px rgba(49,87,246,0.28)", marginBottom: 4 }}>💳</div>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: P.ink }}>Deposit</h2>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: P.blue, background: P.blueBg, padding: "4px 10px", borderRadius: 6 }}>COMING SOON</div>
+      </div>
+
+      <div style={{ background: P.white, borderRadius: 18, border: `1px solid ${P.border}`, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ padding: "18px 18px 6px" }}>
+          <p style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 800, color: P.ink }}>Instant transfer · No fees on first deposit</p>
+          <p style={{ margin: 0, fontSize: 13, color: P.muted, lineHeight: 1.6 }}>
+            When the money layer launches, you&apos;ll be able to fund your league pot instantly — no bank delays, no middleman.
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, borderTop: `1px solid ${P.border}`, marginTop: 16 }}>
+          {[
+            { icon: "⚡", label: "Instant", desc: "Funds appear immediately" },
+            { icon: "🔒", label: "Secure", desc: "Non-custodial prize pool" },
+            { icon: "💸", label: "No fees", desc: "First deposit is free" },
+            { icon: "🏆", label: "Winner takes all", desc: "Auto-distributed on final" },
+          ].map(({ icon, label, desc }, i) => (
+            <div key={label} style={{
+              padding: "14px 16px",
+              borderRight: i % 2 === 0 ? `1px solid ${P.border}` : "none",
+              borderBottom: i < 2 ? `1px solid ${P.border}` : "none",
+            }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: P.ink, marginBottom: 2 }}>{label}</div>
+              <div style={{ fontSize: 11, color: P.muted, lineHeight: 1.4 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, padding: "16px 18px" }}>
+        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 800, color: P.ink }}>Currently in free-to-play mode</p>
+        <p style={{ margin: 0, fontSize: 12, color: P.muted, lineHeight: 1.55 }}>
+          All picks, points and rankings are live — the prize layer drops later this summer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── My Leagues tab (replaces Ranking) ────────────────────────────────────────
+function MyLeaguesTab({ league, user, authUserId, onNewLeague }: { league: League | null; user: { name: string; avatar: string }; authUserId: string; onNewLeague: () => void }) {
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   useEffect(() => { if (league) getLeagueLeaderboard(league.id).then(setBoard); }, [league?.id]);
 
-  if (!league) return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 14, padding: 32, background: P.canvas }}>
-      <span style={{ fontSize: 52 }}>🏆</span>
-      <p style={{ fontSize: 16, fontWeight: 800, color: P.ink, textAlign: "center", margin: 0 }}>No league yet</p>
-      <p style={{ fontSize: 13, color: P.muted, textAlign: "center", margin: 0, lineHeight: 1.55 }}>Create or join a league to compete with friends and see who tops the board.</p>
-      <button onClick={onJoinLeague} style={{ padding: "13px 28px", borderRadius: 12, border: "none", background: P.blue, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
-        Set up my league →
-      </button>
-    </div>
-  );
-
-  const paidCount  = board.filter(p => p.paid).length;
-  const potEuros   = (league.stake_cents * paidCount) / 100;
-  const stakeEuros = league.stake_cents / 100;
-
-  function pnl(rank: number) {
-    if (paidCount === 0 || stakeEuros === 0) return null;
-    return rank === 1
-      ? { val: potEuros - stakeEuros, pos: true }
-      : { val: -stakeEuros, pos: false };
-  }
+  const myRank    = board.findIndex(p => p.user_id === authUserId) + 1;
+  const paidCount = board.filter(p => p.paid).length;
+  const potEuros  = league ? (league.stake_cents * paidCount) / 100 : 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas }}>
-      {paidCount > 0 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", background: P.blue }}>
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>🏆 Prize pool</span>
-          <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{potEuros % 1 === 0 ? potEuros.toFixed(0) : potEuros.toFixed(2)}€</span>
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>{paidCount} players · {stakeEuros.toFixed(0)}€ each</span>
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: `1px solid ${P.border}`, background: P.white }}>
-        <span style={{ flex: 1, fontSize: 10, color: P.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>Players</span>
-        <span style={{ width: 52, textAlign: "right", fontSize: 10, color: P.blue, textTransform: "uppercase", fontWeight: 800 }}>Pts</span>
-        {paidCount > 0 && <span style={{ width: 60, textAlign: "right", fontSize: 10, color: P.muted, textTransform: "uppercase", fontWeight: 800 }}>P&amp;L</span>}
-      </div>
-      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
-        {board.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 240, gap: 12, color: P.muted }}>
-            <span style={{ fontSize: 40 }}>🏆</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>No picks yet</span>
+
+      {/* Global ranking hero */}
+      <div style={{ background: `linear-gradient(135deg, #253ccf, ${P.blue})`, padding: "18px 16px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, marginBottom: 4 }}>GLOBAL RANKING</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", lineHeight: 1 }}>
+            {myRank > 0 ? `#${myRank}` : "–"}
           </div>
-        ) : board.map((p, i) => {
-          const isMe = p.user_id === authUserId;
-          const pl   = pnl(i + 1);
-          return (
-            <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${P.border}`, background: isMe ? P.blueBg : P.white }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, width: 22, flexShrink: 0 }}>
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : <span style={{ color: P.muted }}>{i + 1}</span>}
-                </span>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: P.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {p.name}{isMe && <span style={{ fontSize: 11, color: P.blue, marginLeft: 5 }}>· you</span>}
-                  </div>
-                  {!p.paid && <div style={{ fontSize: 10, color: P.red }}>⏳ payment pending</div>}
+          {board.length > 0 && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>out of {board.length} players</div>}
+        </div>
+        {potEuros > 0 && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, marginBottom: 4 }}>PRIZE POOL</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>{potEuros.toFixed(0)}€</div>
+          </div>
+        )}
+      </div>
+
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
+
+        {/* Leagues I'm in */}
+        {league ? (
+          <div style={{ margin: "12px 12px 0" }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: P.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8, paddingLeft: 2 }}>MY LEAGUES</div>
+            <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+              {/* leaderboard rows */}
+              <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderBottom: `1px solid ${P.border}` }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: P.ink }}>{league.name}</div>
+                  <div style={{ fontSize: 11, color: P.muted }}>{board.length} players{league.stake_cents > 0 ? ` · ${(league.stake_cents / 100).toFixed(0)}€ stake` : ""}</div>
                 </div>
+                <div style={{ padding: "4px 10px", borderRadius: 8, background: P.blueBg, fontSize: 12, fontWeight: 900, color: P.blue }}>{league.code}</div>
               </div>
-              <span style={{ width: 52, textAlign: "right", fontSize: 16, fontWeight: 900, color: P.blue }}>{p.total_pts}</span>
-              {paidCount > 0 && (
-                <span style={{ width: 60, textAlign: "right", fontSize: 13, fontWeight: 800, color: pl ? (pl.pos ? P.green : P.red) : P.muted }}>
-                  {pl ? `${pl.pos ? "+" : ""}${pl.val.toFixed(0)}€` : "–"}
-                </span>
+              {board.slice(0, 5).map((p, i) => {
+                const isMe = p.user_id === authUserId;
+                return (
+                  <div key={p.user_id} style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderBottom: `1px solid ${P.border}`, background: isMe ? P.blueBg : P.white }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, width: 22, flexShrink: 0, color: P.muted }}>
+                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                    </span>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, background: P.gray, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, marginRight: 8, border: `2px solid ${isMe ? P.blue : "transparent"}` }}>{p.avatar}</div>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.name}{isMe && <span style={{ fontSize: 10, color: P.blue, marginLeft: 5 }}>you</span>}
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 900, color: P.blue }}>{p.total_pts} pts</span>
+                  </div>
+                );
+              })}
+              {board.length > 5 && (
+                <div style={{ padding: "10px 14px", fontSize: 12, color: P.muted, textAlign: "center" }}>+{board.length - 5} more players</div>
               )}
             </div>
-          );
-        })}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 24px", gap: 12 }}>
+            <span style={{ fontSize: 48 }}>🏆</span>
+            <p style={{ fontSize: 15, fontWeight: 800, color: P.ink, textAlign: "center", margin: 0 }}>No league yet</p>
+            <p style={{ fontSize: 13, color: P.muted, textAlign: "center", margin: 0, lineHeight: 1.55 }}>Create a private league to compete with friends and share the pot.</p>
+          </div>
+        )}
+
+        {/* + New League button */}
+        <div style={{ padding: "16px 12px 12px" }}>
+          <button onClick={onNewLeague} style={{
+            width: "100%", padding: "14px 0", borderRadius: 14, border: "none",
+            background: P.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer",
+            boxShadow: "0 6px 18px rgba(49,87,246,0.22)",
+          }}>+ New League</button>
+        </div>
+
+        <div style={{ height: 16 }} />
       </div>
     </div>
   );
 }
 
 // ── Profile tab ───────────────────────────────────────────────────────────────
+type ProfileSubTab = "stats" | "picks" | "badges" | "friends";
+
 function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfileUpdate, onJoinLeague }: {
   league: League | null;
   membership: LeagueMember | null;
@@ -599,14 +744,17 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
   onProfileUpdate: (name: string, avatar: string) => void;
   onJoinLeague: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [board, setBoard] = useState<LeaderboardEntry[]>([]);
-  const [members, setMembers] = useState<(LeagueMember & { name: string; avatar: string })[]>([]);
-  const [toggling, setToggling] = useState<string | null>(null);
+  const [subTab, setSubTab] = useState<ProfileSubTab>("stats");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user.name);
   const [savingName, setSavingName] = useState(false);
   const [pickingAvatar, setPickingAvatar] = useState(false);
+  const [board, setBoard] = useState<LeaderboardEntry[]>([]);
+  const [members, setMembers] = useState<(LeagueMember & { name: string; avatar: string })[]>([]);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [myPickHistory, setMyPickHistory] = useState<DBPick[]>([]);
   const isCreator = league ? league.creator_id === authUserId : false;
 
   useEffect(() => {
@@ -614,6 +762,10 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
     getLeagueLeaderboard(league.id).then(setBoard);
     if (isCreator) getLeagueMembers(league.id).then(setMembers);
   }, [league?.id, isCreator]);
+
+  useEffect(() => {
+    getUserPicks(authUserId).then(setMyPickHistory);
+  }, [authUserId]);
 
   const myRank = board.findIndex(p => p.user_id === authUserId) + 1;
 
@@ -634,8 +786,7 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
 
   function share() {
     if (!league) return;
-    const url = "https://scorevault.org";
-    const text = `Join my ScoreVault league! Code: ${league.code} · Stake: ${(league.stake_cents / 100).toFixed(0)}€\n${url}`;
+    const text = `Join my ScoreVault league! Code: ${league.code}`;
     if (navigator.share) navigator.share({ title: "ScoreVault", text }).catch(() => {});
     else { navigator.clipboard.writeText(league.code); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   }
@@ -651,147 +802,234 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
   }
 
   const RULES = [
-    { icon: "⚽", title: "Predict the score",  body: "Enter the exact scoreline for each match before kick-off." },
+    { icon: "⚽", title: "Predict the score",   body: "Enter the exact scoreline for each match before kick-off." },
     { icon: "🔒", title: "Lock before kick-off", body: "Picks are locked once the match starts — no edits after." },
-    { icon: "📊", title: "Earn points",          body: "Exact score = max points (rarity-weighted). Correct result = bonus." },
-    { icon: "🏆", title: "Top score wins",       body: "Most points at end of the tournament wins the full pot." },
+    { icon: "📊", title: "Earn points",           body: "Exact score = max points (rarity-weighted). Correct result = bonus." },
+    { icon: "🏆", title: "Top score wins",        body: "Most points at end of the tournament wins the full pot." },
+  ];
+
+  const SUB_TABS: { id: ProfileSubTab; label: string }[] = [
+    { id: "stats",  label: "Stats" },
+    { id: "picks",  label: "My Picks" },
+    { id: "badges", label: "Badges" },
+    { id: "friends",label: "Friends" },
   ];
 
   return (
-    <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas, position: "relative" }}>
 
-      {/* Header */}
-      <div style={{ background: `linear-gradient(to bottom, rgba(49,87,246,0.07), ${P.canvas})`, padding: "20px 16px 14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-        <button onClick={() => setPickingAvatar(v => !v)} style={{ width: 70, height: 70, borderRadius: "50%", background: P.white, border: `3px solid ${P.blue}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, boxShadow: "0 6px 20px rgba(49,87,246,0.18)", cursor: "pointer", position: "relative" }}>
+      {/* Hamburger drawer overlay */}
+      {drawerOpen && (
+        <div onClick={() => setDrawerOpen(false)} style={{ position: "absolute", inset: 0, zIndex: 50, background: "rgba(15,18,45,0.5)", backdropFilter: "blur(2px)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 260, background: P.white, boxShadow: "4px 0 32px rgba(31,39,84,0.16)", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "20px 18px 12px", borderBottom: `1px solid ${P.border}` }}>
+              <div style={{ fontSize: 16, fontWeight: 900, color: P.ink }}>Menu</div>
+            </div>
+            {[
+              { icon: "⚙️", label: "Settings" },
+              { icon: "🚫", label: "Remove ads" },
+              { icon: "📋", label: "Game rules" },
+              { icon: "💬", label: "Contact" },
+            ].map(({ icon, label }) => (
+              <button key={label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", border: "none", background: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: P.ink, textAlign: "left" }}>
+                <span style={{ fontSize: 18 }}>{icon}</span>{label}
+              </button>
+            ))}
+            <div style={{ flex: 1 }} />
+            <button onClick={() => { setDrawerOpen(false); onSignOut(); }} style={{ margin: "0 18px 24px", padding: "12px 0", borderRadius: 12, border: `1px solid ${P.border}`, background: "none", color: P.muted, fontSize: 13, cursor: "pointer" }}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Profile header */}
+      <div style={{ background: P.white, borderBottom: `1px solid ${P.border}`, padding: "16px 16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, position: "relative" }}>
+        <button onClick={() => setDrawerOpen(true)} style={{ position: "absolute", top: 16, left: 16, width: 36, height: 36, borderRadius: 10, background: P.gray, border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+          {[0,1,2].map(i => <span key={i} style={{ width: 16, height: 2, background: P.ink, borderRadius: 2, display: "block" }} />)}
+        </button>
+
+        <button onClick={() => setPickingAvatar(v => !v)} style={{ width: 64, height: 64, borderRadius: "50%", background: P.gray, border: `3px solid ${P.blue}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: "0 4px 16px rgba(49,87,246,0.18)", cursor: "pointer", position: "relative" }}>
           {user.avatar}
-          <span style={{ position: "absolute", bottom: 0, right: 0, width: 20, height: 20, borderRadius: "50%", background: P.blue, color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</span>
+          <span style={{ position: "absolute", bottom: 0, right: 0, width: 18, height: 18, borderRadius: "50%", background: P.blue, color: "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</span>
         </button>
 
         {pickingAvatar && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, width: "100%" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, width: "100%" }}>
             {AVATARS.map(a => (
-              <button key={a} onClick={() => saveAvatar(a)}
-                style={{ fontSize: 28, padding: "10px 0", borderRadius: 12, cursor: "pointer", background: user.avatar === a ? P.blueBg : P.white, border: `2px solid ${user.avatar === a ? P.blue : P.border}` }}>
-                {a}
-              </button>
+              <button key={a} onClick={() => saveAvatar(a)} style={{ fontSize: 26, padding: "9px 0", borderRadius: 10, cursor: "pointer", background: user.avatar === a ? P.blueBg : P.gray, border: `2px solid ${user.avatar === a ? P.blue : "transparent"}` }}>{a}</button>
             ))}
           </div>
         )}
 
         {editingName ? (
           <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%" }}>
-            <input
-              autoFocus value={nameInput} onChange={e => setNameInput(e.target.value)}
+            <input autoFocus value={nameInput} onChange={e => setNameInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
-              style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `2px solid ${P.blue}`, fontSize: 15, fontWeight: 700, outline: "none", textAlign: "center" }}
-            />
-            <button onClick={saveName} disabled={savingName}
-              style={{ padding: "9px 14px", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontWeight: 800, cursor: "pointer", fontSize: 13 }}>
+              style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: `2px solid ${P.blue}`, fontSize: 15, fontWeight: 700, outline: "none", textAlign: "center" }} />
+            <button onClick={saveName} disabled={savingName} style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontWeight: 800, cursor: "pointer", fontSize: 13 }}>
               {savingName ? "…" : "Save"}
             </button>
           </div>
         ) : (
-          <button onClick={() => { setNameInput(user.name); setEditingName(true); }}
-            style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: P.ink }}>{user.name}</h2>
-            <span style={{ fontSize: 12, color: P.blue }}>✏️</span>
+          <button onClick={() => { setNameInput(user.name); setEditingName(true); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ fontSize: 16, fontWeight: 900, color: P.ink }}>{user.name}</span>
+            <span style={{ fontSize: 11, color: P.blue }}>✏️</span>
           </button>
         )}
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {myRank > 0 && <span style={{ fontSize: 12, color: P.blue, fontWeight: 700 }}>#{myRank} · {board.length} players</span>}
-        </div>
+        {myRank > 0 && <span style={{ fontSize: 11, color: P.blue, fontWeight: 700 }}>#{myRank} global · {board.length} players</span>}
       </div>
 
-      <div style={{ padding: "0 12px 28px", display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Sub-tab bar */}
+      <div style={{ display: "flex", background: P.white, borderBottom: `1px solid ${P.border}`, flexShrink: 0 }}>
+        {SUB_TABS.map(st => (
+          <button key={st.id} onClick={() => setSubTab(st.id)} style={{
+            flex: 1, padding: "10px 4px", border: "none", background: "none", cursor: "pointer",
+            fontSize: 12, fontWeight: subTab === st.id ? 800 : 500,
+            color: subTab === st.id ? P.blue : P.muted,
+            borderBottom: `2px solid ${subTab === st.id ? P.blue : "transparent"}`,
+            transition: "all 0.15s",
+          }}>{st.label}</button>
+        ))}
+      </div>
 
-        {/* League info + invite */}
-        {league ? (
-          <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
-            <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${P.border}` }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: P.ink }}>{league.name}</div>
-                <div style={{ fontSize: 11, color: P.muted }}>Stake: {(league.stake_cents / 100).toFixed(0)}€ per player</div>
+      {/* Sub-tab content */}
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
+
+        {subTab === "stats" && (
+          <div style={{ padding: "12px 12px 32px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Prize money */}
+            <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, padding: "16px 16px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: P.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Prize money</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: P.blue, background: P.blueBg, padding: "3px 8px", borderRadius: 5 }}>PLAY</span>
               </div>
-              <div style={{ padding: "6px 12px", borderRadius: 8, background: P.blueBg, fontSize: 13, fontWeight: 900, color: P.blue, letterSpacing: "0.05em" }}>{league.code}</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: P.ink }}>$0.00</div>
+              <div style={{ fontSize: 11, color: P.muted, marginTop: 3 }}>Testnet — play money, not real cash</div>
             </div>
-            <div style={{ padding: "10px 14px", display: "flex", gap: 8 }}>
-              <button onClick={share} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
-                {copied ? "Copied!" : "+ Invite friends"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, padding: "16px 14px" }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: P.ink, marginBottom: 4 }}>No league yet</div>
-            <div style={{ fontSize: 12, color: P.muted, marginBottom: 12, lineHeight: 1.55 }}>Create your own or join a friend's league to compete on the leaderboard.</div>
-            <button onClick={onJoinLeague} style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
-              Create or join a league →
-            </button>
-          </div>
-        )}
 
-        {/* Admin: payment management (creator only) */}
-        {isCreator && (
-          <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
-            <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 14 }}>🔑</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>PAYMENT ADMIN</span>
-            </div>
-            {members.length === 0 ? (
-              <div style={{ padding: "16px 14px", fontSize: 13, color: P.muted }}>No members yet.</div>
-            ) : members.map(m => (
-              <div key={m.user_id} style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${P.border}` }}>
-                <span style={{ fontSize: 22, marginRight: 10 }}>{m.avatar}</span>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.ink }}>{m.name}</span>
-                <button
-                  onClick={() => togglePaid(m)}
-                  disabled={toggling === m.user_id}
-                  style={{ padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800,
-                    background: m.paid ? P.greenBg : "rgba(223,83,83,0.1)",
-                    color: m.paid ? P.green : P.red,
-                    opacity: toggling === m.user_id ? 0.5 : 1 }}
-                >
-                  {toggling === m.user_id ? "…" : m.paid ? "✓ Paid" : "Mark paid"}
-                </button>
+            {/* Stats grid */}
+            <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px 8px", borderBottom: `1px solid ${P.border}` }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>MY STATS — WC 2026</span>
               </div>
-            ))}
-          </div>
-        )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                {[
+                  { label: "Picks made",    value: myPickHistory.length },
+                  { label: "Global rank",   value: myRank > 0 ? `#${myRank}` : "–" },
+                  { label: "Correct picks", value: "–" },
+                  { label: "Exact scores",  value: "–" },
+                ].map(({ label, value }, i) => (
+                  <div key={label} style={{ padding: "14px 16px", borderRight: i % 2 === 0 ? `1px solid ${P.border}` : "none", borderBottom: i < 2 ? `1px solid ${P.border}` : "none" }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: P.blue, marginBottom: 3 }}>{value}</div>
+                    <div style={{ fontSize: 11, color: P.muted }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-        {/* How to play */}
-        <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
-          <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${P.border}` }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>HOW TO PLAY</span>
-          </div>
-          <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {RULES.map(r => (
-              <div key={r.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 20, flexShrink: 0 }}>{r.icon}</span>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: P.ink, marginBottom: 1 }}>{r.title}</div>
-                  <div style={{ fontSize: 12, color: P.muted, lineHeight: 1.5 }}>{r.body}</div>
+            {/* League info */}
+            {league ? (
+              <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+                <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${P.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: P.ink }}>{league.name}</div>
+                    <div style={{ fontSize: 11, color: P.muted }}>Stake: {(league.stake_cents / 100).toFixed(0)}€ per player</div>
+                  </div>
+                  <div style={{ padding: "5px 11px", borderRadius: 8, background: P.blueBg, fontSize: 12, fontWeight: 900, color: P.blue }}>{league.code}</div>
+                </div>
+                <div style={{ padding: "10px 14px" }}>
+                  <button onClick={share} style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+                    {copied ? "Copied!" : "+ Invite friends"}
+                  </button>
                 </div>
               </div>
-            ))}
+            ) : (
+              <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, padding: "16px 14px" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: P.ink, marginBottom: 8 }}>No league yet</div>
+                <button onClick={onJoinLeague} style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: P.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                  Create or join a league →
+                </button>
+              </div>
+            )}
+
+            {/* Admin: payment management (creator only) */}
+            {isCreator && (
+              <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+                <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 14 }}>🔑</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>PAYMENT ADMIN</span>
+                </div>
+                {members.length === 0 ? (
+                  <div style={{ padding: "16px 14px", fontSize: 13, color: P.muted }}>No members yet.</div>
+                ) : members.map(m => (
+                  <div key={m.user_id} style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${P.border}` }}>
+                    <span style={{ fontSize: 22, marginRight: 10 }}>{m.avatar}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.ink }}>{m.name}</span>
+                    <button onClick={() => togglePaid(m)} disabled={toggling === m.user_id} style={{ padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800, background: m.paid ? P.greenBg : "rgba(223,83,83,0.1)", color: m.paid ? P.green : P.red, opacity: toggling === m.user_id ? 0.5 : 1 }}>
+                      {toggling === m.user_id ? "…" : m.paid ? "✓ Paid" : "Mark paid"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* How to play */}
+            <div style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${P.border}` }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: P.ink, letterSpacing: "0.04em" }}>HOW TO PLAY</span>
+              </div>
+              <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+                {RULES.map(r => (
+                  <div key={r.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{r.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: P.ink, marginBottom: 1 }}>{r.title}</div>
+                      <div style={{ fontSize: 12, color: P.muted, lineHeight: 1.5 }}>{r.body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* LT vision */}
-        <div style={{ borderRadius: 16, padding: 18, background: "linear-gradient(145deg, #253ccf, #3157f6 52%, #172784)", boxShadow: "0 12px 32px rgba(49,87,246,0.22)" }}>
-          <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "4px 8px", borderRadius: 4, marginBottom: 12 }}>COMING SOON</div>
-          <h3 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 22, color: "#fff", letterSpacing: "0.02em" }}>ScoreVault v2</h3>
-          <p style={{ margin: "0 0 0", fontSize: 12, color: "#c8d0ff", lineHeight: 1.6 }}>
-            Stake USDC · on-chain scoring · real prizes.<br />
-            Top scorer at WC2026 Final wins <strong style={{ color: "#fff" }}>2 seats in NYC</strong>.<br />
-            Built on Base — trustless, transparent, no middleman.
-          </p>
-        </div>
+        {subTab === "picks" && (
+          <div style={{ padding: "12px 12px 32px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {myPickHistory.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 12, color: P.muted }}>
+                <span style={{ fontSize: 40 }}>⚽</span>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>No picks yet</span>
+              </div>
+            ) : myPickHistory.map(p => {
+              const meta = WC_META[p.match_id];
+              return (
+                <div key={p.match_id} style={{ background: P.white, borderRadius: 14, border: `1px solid ${P.border}`, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                  {meta && <span style={{ fontSize: 20 }}>{meta.home.flag} vs {meta.away.flag}</span>}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: P.ink }}>{meta ? `${meta.home.name} – ${meta.away.name}` : p.match_id}</div>
+                    <div style={{ fontSize: 11, color: P.muted }}>Pick: {p.home_score} – {p.away_score}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Sign out */}
-        <button onClick={onSignOut} style={{ padding: "13px 0", borderRadius: 12, border: `1px solid ${P.border}`, background: "none", color: P.muted, fontSize: 13, cursor: "pointer" }}>
-          Sign out
-        </button>
+        {subTab === "badges" && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 24px", gap: 12, color: P.muted }}>
+            <span style={{ fontSize: 48 }}>🏅</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Badges coming soon</span>
+          </div>
+        )}
+
+        {subTab === "friends" && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 24px", gap: 12, color: P.muted }}>
+            <span style={{ fontSize: 48 }}>👥</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Friends coming soon</span>
+          </div>
+        )}
 
       </div>
     </div>
@@ -878,17 +1116,29 @@ function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 const TAB_TITLES: Record<Tab, string> = {
-  picks: "MY PREDICTIONS", results: "RESULTS", ranking: "STANDINGS", profile: "PROFILE",
+  picks: "My Picks", results: "Results", deposit: "Deposit", leagues: "My Leagues", profile: "Profile",
 };
 
 function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  const items: { id: Tab; label: string; icon: string | React.JSX.Element }[] = [
-    { id: "picks", label: "Predictions", icon: (
+  type NavItem = { id: Tab; label: string; icon: React.JSX.Element; center?: boolean };
+  const items: NavItem[] = [
+    { id: "picks", label: "My Picks", icon: (
       <div style={{ width: 26, height: 22, borderRadius: 6, fontSize: 9, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", background: tab === "picks" ? P.blue : "#a8abba", color: "#fff" }}>1:1</div>
     )},
-    { id: "results", label: "Results", icon: <span style={{ fontSize: 22, filter: tab === "results" ? "none" : "grayscale(1) opacity(0.5)" }}>⚽</span> },
-    { id: "ranking", label: "Ranking", icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "ranking" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    { id: "results", label: "Results", icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "results" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    )},
+    { id: "deposit", label: "Deposit", center: true, icon: (
+      <div style={{ width: 44, height: 44, borderRadius: 14, background: tab === "deposit" ? P.blue : `linear-gradient(145deg, #3a66ff, ${P.blue})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(49,87,246,0.35)", marginTop: -10 }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      </div>
+    )},
+    { id: "leagues", label: "Leagues", icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "leagues" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
         <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
         <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
@@ -897,24 +1147,24 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
     )},
     { id: "profile", label: "Profile", icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={tab === "profile" ? P.blue : "#9a9eaf"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="4"/>
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
       </svg>
     )},
   ];
 
   return (
-    <nav style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", minHeight: 68, background: P.white, borderTop: `1px solid ${P.border}`, boxShadow: "0 -8px 24px rgba(38,45,82,0.06)", paddingBottom: "env(safe-area-inset-bottom, 0)" }}>
+    <nav style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", minHeight: 68, background: P.white, borderTop: `1px solid ${P.border}`, boxShadow: "0 -8px 24px rgba(38,45,82,0.06)", paddingBottom: "env(safe-area-inset-bottom, 0)", alignItems: "end" }}>
       {items.map(item => (
         <button key={item.id} onClick={() => setTab(item.id)} style={{
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          gap: 4, border: "none", cursor: "pointer", background: "transparent", padding: "8px 2px",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: item.center ? "flex-start" : "center",
+          gap: item.center ? 2 : 4, border: "none", cursor: "pointer", background: "transparent",
+          padding: item.center ? "4px 2px 8px" : "8px 2px",
           color: tab === item.id ? P.blue : "#9a9eaf",
-          borderTop: `3px solid ${tab === item.id ? P.blue : "transparent"}`,
+          borderTop: item.center ? "none" : `3px solid ${tab === item.id ? P.blue : "transparent"}`,
           transition: "color 0.15s",
         }}>
           {item.icon}
-          <span style={{ fontSize: 10, fontWeight: tab === item.id ? 700 : 500, lineHeight: 1 }}>{item.label}</span>
+          <span style={{ fontSize: 10, fontWeight: tab === item.id ? 700 : 500, lineHeight: 1, color: item.center ? (tab === "deposit" ? P.blue : P.muted) : undefined }}>{item.label}</span>
         </button>
       ))}
     </nav>
@@ -1437,13 +1687,17 @@ export default function App() {
   return (
     <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
       <div style={{ position: "relative", display: "flex", flexDirection: "column", width: "min(100vw, 430px)", height: "min(100dvh, 932px)", overflow: "hidden", background: P.canvas, boxShadow: "0 28px 90px rgba(31,39,84,0.18), 0 0 0 1px rgba(30,37,72,0.05)" }}>
-        <header style={{ display: "grid", gridTemplateColumns: "1fr", alignItems: "center", minHeight: 60, padding: "max(0px,env(safe-area-inset-top)) 16px 0", background: P.white, borderBottom: `1px solid ${P.border}`, boxShadow: "0 4px 18px rgba(32,39,78,0.04)" }}>
-          <h1 style={{ margin: 0, textAlign: "center", fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: "-0.02em" }}>{TAB_TITLES[tab]}</h1>
-        </header>
+        {/* Top bar — hidden on Profile (it has its own header with hamburger) */}
+        {tab !== "profile" && (
+          <header style={{ display: "grid", gridTemplateColumns: "1fr", alignItems: "center", minHeight: 56, padding: "max(0px,env(safe-area-inset-top)) 16px 0", background: P.white, borderBottom: `1px solid ${P.border}`, boxShadow: "0 4px 18px rgba(32,39,78,0.04)", flexShrink: 0 }}>
+            <h1 style={{ margin: 0, textAlign: "center", fontSize: 16, fontWeight: 800, color: P.ink, letterSpacing: "-0.02em" }}>{TAB_TITLES[tab]}</h1>
+          </header>
+        )}
         <main style={{ position: "relative", flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {tab === "picks"   && <PicksTab userId={authUserId} />}
+          {tab === "picks"   && <PicksTab userId={authUserId} onShowLeagueSetup={() => setShowLeagueSetup(true)} />}
           {tab === "results" && <ResultsTab userId={authUserId} />}
-          {tab === "ranking" && <RankingTab league={league} user={profile!} authUserId={authUserId!} onJoinLeague={() => { setShowLeagueSetup(true); }} />}
+          {tab === "deposit" && <DepositTab />}
+          {tab === "leagues" && <MyLeaguesTab league={league} user={profile!} authUserId={authUserId!} onNewLeague={() => setShowLeagueSetup(true)} />}
           {tab === "profile" && <ProfileTab league={league} membership={membership} user={profile!} authUserId={authUserId!} onSignOut={doSignOut} onProfileUpdate={(name, avatar) => setProfile({ name, avatar })} onJoinLeague={() => { setShowLeagueSetup(true); }} />}
         </main>
         <BottomNav tab={tab} setTab={setTab} />
