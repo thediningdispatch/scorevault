@@ -421,12 +421,13 @@ function PicksTab({ userId, onShowLeagueSetup }: { userId: string | null; onShow
 
       {/* Create / Join / Import — private league shortcuts */}
       <div style={{ padding: "10px 12px", background: P.white, borderBottom: `1px solid ${P.border}`, display: "flex", gap: 8, flexShrink: 0 }}>
-        {[{ label: "Create", icon: "✨" }, { label: "Join", icon: "🔗" }, { label: "Import", icon: "📥" }].map(({ label, icon }) => (
-          <button key={label} onClick={onShowLeagueSetup} style={{
+        {[{ label: "Create", icon: "✨" }, { label: "Join", icon: "🔗" }, { label: "Import", icon: "📥", soon: true }].map(({ label, icon, soon }) => (
+          <button key={label} onClick={soon ? undefined : onShowLeagueSetup} style={{
             flex: 1, padding: "9px 0", borderRadius: 10,
-            background: P.gray, border: `1px solid ${P.border}`,
-            fontSize: 11, fontWeight: 700, color: P.ink, cursor: "pointer",
+            background: soon ? P.gray : P.gray, border: `1px solid ${P.border}`,
+            fontSize: 11, fontWeight: 700, color: soon ? P.muted : P.ink, cursor: soon ? "default" : "pointer",
             display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+            opacity: soon ? 0.55 : 1,
           }}>
             <span style={{ fontSize: 15 }}>{icon}</span>
             <span>{label}</span>
@@ -733,7 +734,15 @@ function MyLeaguesTab({ league, user, authUserId, onNewLeague }: { league: Leagu
 }
 
 // ── Profile tab ───────────────────────────────────────────────────────────────
+const RULES = [
+  { icon: "⚽", title: "Predict the score",   body: "Enter the exact scoreline for each match before kick-off." },
+  { icon: "🔒", title: "Lock before kick-off", body: "Picks are locked once the match starts — no edits after." },
+  { icon: "📊", title: "Earn points",           body: "Exact score = max points (rarity-weighted). Correct result = bonus." },
+  { icon: "🏆", title: "Top score wins",        body: "Most points at end of the tournament wins the full pot." },
+];
+
 type ProfileSubTab = "stats" | "picks" | "badges" | "friends";
+type DrawerSection = null | "rules" | "settings" | "ads";
 
 function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfileUpdate, onJoinLeague }: {
   league: League | null;
@@ -746,6 +755,7 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
 }) {
   const [subTab, setSubTab] = useState<ProfileSubTab>("stats");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSection, setDrawerSection] = useState<DrawerSection>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user.name);
   const [savingName, setSavingName] = useState(false);
@@ -801,13 +811,6 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
     setToggling(null);
   }
 
-  const RULES = [
-    { icon: "⚽", title: "Predict the score",   body: "Enter the exact scoreline for each match before kick-off." },
-    { icon: "🔒", title: "Lock before kick-off", body: "Picks are locked once the match starts — no edits after." },
-    { icon: "📊", title: "Earn points",           body: "Exact score = max points (rarity-weighted). Correct result = bonus." },
-    { icon: "🏆", title: "Top score wins",        body: "Most points at end of the tournament wins the full pot." },
-  ];
-
   const SUB_TABS: { id: ProfileSubTab; label: string }[] = [
     { id: "stats",  label: "Stats" },
     { id: "picks",  label: "My Picks" },
@@ -820,25 +823,92 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
 
       {/* Hamburger drawer overlay */}
       {drawerOpen && (
-        <div onClick={() => setDrawerOpen(false)} style={{ position: "absolute", inset: 0, zIndex: 50, background: "rgba(15,18,45,0.5)", backdropFilter: "blur(2px)" }}>
-          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 260, background: P.white, boxShadow: "4px 0 32px rgba(31,39,84,0.16)", display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "20px 18px 12px", borderBottom: `1px solid ${P.border}` }}>
-              <div style={{ fontSize: 16, fontWeight: 900, color: P.ink }}>Menu</div>
+        <div onClick={() => { setDrawerOpen(false); setDrawerSection(null); }} style={{ position: "absolute", inset: 0, zIndex: 50, background: "rgba(15,18,45,0.5)", backdropFilter: "blur(2px)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 280, background: P.white, boxShadow: "4px 0 32px rgba(31,39,84,0.16)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+            <div style={{ padding: "20px 18px 12px", borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+              {drawerSection && (
+                <button onClick={() => setDrawerSection(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: P.muted, padding: 0, lineHeight: 1 }}>←</button>
+              )}
+              <div style={{ fontSize: 15, fontWeight: 900, color: P.ink }}>
+                {drawerSection === "rules" ? "Game rules" : drawerSection === "settings" ? "Settings" : drawerSection === "ads" ? "Remove ads" : "Menu"}
+              </div>
             </div>
-            {[
-              { icon: "⚙️", label: "Settings" },
-              { icon: "🚫", label: "Remove ads" },
-              { icon: "📋", label: "Game rules" },
-              { icon: "💬", label: "Contact" },
-            ].map(({ icon, label }) => (
-              <button key={label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", border: "none", background: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: P.ink, textAlign: "left" }}>
-                <span style={{ fontSize: 18 }}>{icon}</span>{label}
-              </button>
-            ))}
+
+            {/* Main menu items */}
+            {!drawerSection && (
+              <>
+                {[
+                  { icon: "⚙️", label: "Settings",    section: "settings" as DrawerSection },
+                  { icon: "🚫", label: "Remove ads",  section: "ads"      as DrawerSection },
+                  { icon: "📋", label: "Game rules",  section: "rules"    as DrawerSection },
+                ].map(({ icon, label, section }) => (
+                  <button key={label} onClick={() => setDrawerSection(section)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", border: "none", background: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: P.ink, textAlign: "left", borderBottom: `1px solid ${P.border}` }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 18 }}>{icon}</span>{label}</span>
+                    <span style={{ color: P.muted, fontSize: 16 }}>›</span>
+                  </button>
+                ))}
+                <button onClick={() => { window.location.href = "mailto:hello@scorevault.io"; }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", border: "none", background: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: P.ink, borderBottom: `1px solid ${P.border}` }}>
+                  <span style={{ fontSize: 18 }}>💬</span>Contact
+                </button>
+              </>
+            )}
+
+            {/* Game rules */}
+            {drawerSection === "rules" && (
+              <div style={{ padding: "12px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+                {RULES.map(r => (
+                  <div key={r.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{r.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: P.ink, marginBottom: 3 }}>{r.title}</div>
+                      <div style={{ fontSize: 12, color: P.muted, lineHeight: 1.5 }}>{r.body}</div>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ marginTop: 4, padding: "12px 14px", borderRadius: 12, background: P.blueBg, border: `1px solid #d9ddff` }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: P.blue, marginBottom: 4 }}>Pick value</div>
+                  <div style={{ fontSize: 12, color: P.muted, lineHeight: 1.5 }}>Points are calculated from Polymarket odds snapshotted 15 min before kick-off. Rarer outcomes pay more.</div>
+                </div>
+              </div>
+            )}
+
+            {/* Settings */}
+            {drawerSection === "settings" && (
+              <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: P.ink, marginBottom: 4 }}>Account</div>
+                <div style={{ background: P.gray, borderRadius: 12, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: P.muted, marginBottom: 2 }}>Username</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: P.ink }}>Edit in Profile tab →</div>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: P.ink, marginTop: 8, marginBottom: 4 }}>Coming soon</div>
+                {["Language", "Match alerts", "Club alerts", "Newsletter", "Payment settings"].map(s => (
+                  <div key={s} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: P.gray, borderRadius: 10, opacity: 0.6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: P.ink }}>{s}</span>
+                    <span style={{ fontSize: 10, color: P.muted, background: P.border, padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>SOON</span>
+                  </div>
+                ))}
+                <button onClick={() => { setDrawerSection(null); setDrawerOpen(false); onSignOut(); }} style={{ marginTop: 16, padding: "12px 0", borderRadius: 12, border: `1px solid ${P.border}`, background: "none", color: P.red, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Delete account
+                </button>
+              </div>
+            )}
+
+            {/* Remove ads */}
+            {drawerSection === "ads" && (
+              <div style={{ padding: "24px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+                <span style={{ fontSize: 40 }}>🚫</span>
+                <div style={{ fontSize: 15, fontWeight: 800, color: P.ink }}>Remove ads</div>
+                <div style={{ fontSize: 13, color: P.muted, lineHeight: 1.6 }}>Ad-free premium is coming with the v2 money layer. You&apos;ll be first to know.</div>
+                <div style={{ padding: "6px 14px", borderRadius: 8, background: P.blueBg, fontSize: 11, fontWeight: 800, color: P.blue }}>COMING SOON</div>
+              </div>
+            )}
+
             <div style={{ flex: 1 }} />
-            <button onClick={() => { setDrawerOpen(false); onSignOut(); }} style={{ margin: "0 18px 24px", padding: "12px 0", borderRadius: 12, border: `1px solid ${P.border}`, background: "none", color: P.muted, fontSize: 13, cursor: "pointer" }}>
-              Sign out
-            </button>
+            {!drawerSection && (
+              <button onClick={() => { setDrawerOpen(false); setDrawerSection(null); onSignOut(); }} style={{ margin: "0 18px 24px", padding: "12px 0", borderRadius: 12, border: `1px solid ${P.border}`, background: "none", color: P.muted, fontSize: 13, cursor: "pointer" }}>
+                Sign out
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1047,9 +1117,9 @@ const BG_FLOATS = [
   { emoji: "🏅", top: "86%", left: "55%", delay: "0.6s", size: 26, dur: "5.8s" },
 ];
 
-function Onboarding({ onDone }: { onDone: (name: string, avatar: string) => void }) {
+function Onboarding({ onDone, suggestedName = "" }: { onDone: (name: string, avatar: string) => void; suggestedName?: string }) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(suggestedName);
   const [avatar, setAvatar] = useState(AVATARS[0]);
   const valid = name.trim().length >= 2;
 
@@ -1193,6 +1263,7 @@ function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
   return (
     <div style={{
       position: "fixed", bottom: 0, left: "50%",
+      transform: "translateX(-50%)",
       width: "min(100vw, 430px)", zIndex: 998,
       animation: "sv-slide-up 0.5s cubic-bezier(0.34,1.46,0.64,1) forwards",
       paddingBottom: "env(safe-area-inset-bottom, 0)",
@@ -1374,15 +1445,44 @@ function PromoPopup({ onDismiss, onDone }: { onDismiss: () => void; onDone: () =
 }
 
 // ── Auth screen ───────────────────────────────────────────────────────────────
-function AuthScreen() {
-  const [loading, setLoading] = useState(false);
+function AuthScreen({ onGuest }: { onGuest: () => void }) {
+  const [loading, setLoading] = useState<"google" | "apple" | "guest" | null>(null);
   const [error, setError]     = useState("");
 
-  async function enter() {
-    setLoading(true); setError("");
-    const { error: e } = await supabase.auth.signInAnonymously();
-    if (e) { setError("Something went wrong. Try again."); setLoading(false); }
+  const redirect = typeof window !== "undefined" ? window.location.origin : "";
+
+  async function signInGoogle() {
+    setLoading("google"); setError("");
+    const { error: e } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirect } });
+    if (e) { setError("Google sign-in failed. Try again."); setLoading(null); }
   }
+
+  async function signInApple() {
+    setLoading("apple"); setError("");
+    const { error: e } = await supabase.auth.signInWithOAuth({ provider: "apple", options: { redirectTo: redirect } });
+    if (e) { setError("Apple sign-in failed. Try again."); setLoading(null); }
+  }
+
+  async function signInGuest() {
+    setLoading("guest"); setError("");
+    const { error: e } = await supabase.auth.signInAnonymously();
+    if (e) { setError("Something went wrong. Try again."); setLoading(null); }
+  }
+
+  const GoogleIcon = (
+    <svg width="20" height="20" viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
+
+  const AppleIcon = (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+    </svg>
+  );
 
   return (
     <div style={{ height: "100%", position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
@@ -1395,19 +1495,24 @@ function AuthScreen() {
           <div style={{ position: "absolute", inset: -18, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.12)", animation: "sv-pulse-ring 1.8s ease-out 1.1s infinite" }} />
           <div style={{ width: 90, height: 90, borderRadius: 26, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46, animation: "sv-pop-in 0.7s cubic-bezier(0.34,1.56,0.64,1) both", boxShadow: "0 12px 40px rgba(0,0,0,0.3)" }}>⚽</div>
         </div>
-        <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", margin: "0 0 10px", letterSpacing: "0.06em", animation: "sv-fade-up 0.5s ease 0.3s both" }}>SCOREVAULT</h1>
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", margin: "0 0 40px", textAlign: "center", lineHeight: 1.65, animation: "sv-fade-up 0.5s ease 0.45s both" }}>
+        <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", margin: "0 0 6px", letterSpacing: "0.06em", animation: "sv-fade-up 0.5s ease 0.3s both" }}>SCOREVAULT</h1>
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", margin: "0 0 36px", textAlign: "center", lineHeight: 1.65, animation: "sv-fade-up 0.5s ease 0.45s both" }}>
           Predict scores · Climb the board · Win the pot
         </p>
         {error && <div style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(223,83,83,0.2)", color: "#fca5a5", fontSize: 13 }}>{error}</div>}
-        <div style={{ width: "100%", animation: "sv-fade-up 0.5s ease 0.55s both" }}>
-          <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
-            <button onClick={enter} disabled={loading}
-              style={{ width: "100%", padding: 18, borderRadius: 16, border: "none", background: "#fff", color: P.blue, fontSize: 17, fontWeight: 900, cursor: "pointer" }}>
-              {loading ? "Loading…" : "Play 🚀"}
-            </button>
-            {!loading && <div style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)", animation: "sv-shine 1.6s ease 0.9s infinite", pointerEvents: "none" }} />}
-          </div>
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, animation: "sv-fade-up 0.5s ease 0.55s both" }}>
+          {/* Google */}
+          <button onClick={signInGoogle} disabled={loading !== null} style={{ width: "100%", padding: "15px 20px", borderRadius: 14, border: "none", background: "#fff", color: "#1a1a1a", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: loading && loading !== "google" ? 0.5 : 1 }}>
+            {loading === "google" ? <span style={{ fontSize: 14 }}>Redirecting…</span> : <>{GoogleIcon}<span>Continue with Google</span></>}
+          </button>
+          {/* Apple */}
+          <button onClick={signInApple} disabled={loading !== null} style={{ width: "100%", padding: "15px 20px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: loading && loading !== "apple" ? 0.5 : 1 }}>
+            {loading === "apple" ? <span style={{ fontSize: 14 }}>Redirecting…</span> : <>{AppleIcon}<span>Continue with Apple</span></>}
+          </button>
+          {/* Guest */}
+          <button onClick={signInGuest} disabled={loading !== null} style={{ width: "100%", padding: "12px 0", background: "none", border: "none", color: "rgba(255,255,255,0.45)", fontSize: 13, cursor: "pointer", textDecoration: "underline", opacity: loading && loading !== "guest" ? 0.5 : 1 }}>
+            {loading === "guest" ? "Entering…" : "Browse without account →"}
+          </button>
         </div>
       </div>
     </div>
@@ -1598,7 +1703,7 @@ function PendingPaymentScreen({ league, onRefresh, onSignOut }: {
 }
 
 // ── App root ──────────────────────────────────────────────────────────────────
-type AppScreen = "loading" | "auth" | "profile_setup" | "league" | "pending" | "app";
+type AppScreen = "loading" | "auth" | "profile_setup" | "app";
 
 export default function App() {
   const [screen, setScreen]         = useState<AppScreen>("loading");
@@ -1606,6 +1711,7 @@ export default function App() {
   const [profile, setProfile]       = useState<{ name: string; avatar: string } | null>(null);
   const [league, setLeague]         = useState<League | null>(null);
   const [membership, setMembership] = useState<LeagueMember | null>(null);
+  const [suggestedName, setSuggestedName] = useState("");
   const [tab, setTab]               = useState<Tab>("picks");
   const [showPromo, setShowPromo]   = useState(false);
   const [showInstall, setShowInstall] = useState(false);
@@ -1646,6 +1752,10 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) { setScreen("auth"); return; }
       setAuthUserId(session.user.id);
+      // Pre-fill username from Google/Apple OAuth metadata
+      const meta = session.user.user_metadata;
+      const oauthName = meta?.full_name || meta?.name || "";
+      if (oauthName) setSuggestedName(oauthName.split(" ")[0]); // first name only
       await advance(session.user.id);
     });
     return () => subscription.unsubscribe();
@@ -1681,8 +1791,8 @@ export default function App() {
   );
 
   if (screen === "loading")       return null;
-  if (screen === "auth")          return <Wrapper full><AuthScreen /></Wrapper>;
-  if (screen === "profile_setup") return <Wrapper full><Onboarding onDone={async (name, avatar) => { if (!authUserId) return; await upsertProfile(authUserId, name, avatar); setProfile({ name, avatar }); await advance(authUserId); }} /></Wrapper>;
+  if (screen === "auth")          return <Wrapper full><AuthScreen onGuest={async () => { const { error } = await supabase.auth.signInAnonymously(); if (error) console.error(error); }} /></Wrapper>;
+  if (screen === "profile_setup") return <Wrapper full><Onboarding suggestedName={suggestedName} onDone={async (name, avatar) => { if (!authUserId) return; await upsertProfile(authUserId, name, avatar); setProfile({ name, avatar }); await advance(authUserId); }} /></Wrapper>;
 
   return (
     <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
