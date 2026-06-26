@@ -12,12 +12,28 @@ import "../src/PayoutDistributor.sol";
 contract MockVault {
     address[] private _players;
     uint256   public  entryFee;
+    mapping(address => bool) public hasJoined;
+    bool public distributed;
+    address[] public lastRecipients;
+    uint256[] public lastAmounts;
 
     constructor(uint256 fee_) { entryFee = fee_; }
 
-    function addPlayer(address p) external { _players.push(p); }
+    function addPlayer(address p) external {
+        _players.push(p);
+        hasJoined[p] = true;
+    }
     function getPlayers() external view returns (address[] memory) { return _players; }
     function totalPool()  external view returns (uint256) { return _players.length * entryFee; }
+    function distribute(address[] calldata recipients, uint256[] calldata amounts) external {
+        distributed = true;
+        delete lastRecipients;
+        delete lastAmounts;
+        for (uint256 i = 0; i < recipients.length; i++) {
+            lastRecipients.push(recipients[i]);
+            lastAmounts.push(amounts[i]);
+        }
+    }
 }
 
 // ── Test ──────────────────────────────────────────────────────────────────────
@@ -44,8 +60,8 @@ contract PayoutDistributorTest is Test {
     function setUp() public {
         engine = new ScoreEngine();
         oracle = new OracleAdapter(admin);
-        pc     = new PredictionCommitment(admin);
         vault  = new MockVault(ENTRY);
+        pc     = new PredictionCommitment(admin, address(vault));
 
         uint16[3] memory tiers = [uint16(6000), uint16(3000), uint16(1000)];
         dist = new PayoutDistributor(
@@ -204,6 +220,26 @@ contract PayoutDistributorTest is Test {
         assertEq(charlieAmt,          0);
 
         assertEq(aliceAmt + dianaAmt + bobAmt + charlieAmt, vault.totalPool());
+    }
+
+    function test_distributeComputedPayouts() public {
+        vm.prank(admin); dist.computeMatch(MATCH_1);
+        vm.prank(admin); dist.computeMatch(MATCH_2);
+
+        vm.prank(admin);
+        dist.distributeComputedPayouts();
+
+        assertTrue(vault.distributed());
+        assertEq(vault.lastRecipients(0), alice);
+        assertEq(vault.lastAmounts(0), 24_000_000);
+        assertEq(vault.lastRecipients(1), diana);
+        assertEq(vault.lastAmounts(1), 12_000_000);
+    }
+
+    function test_nonAdminCannotDistributeComputedPayouts() public {
+        vm.prank(alice);
+        vm.expectRevert(PayoutDistributor.NotAdmin.selector);
+        dist.distributeComputedPayouts();
     }
 
     function test_invalidPayoutBpsReverts() public {

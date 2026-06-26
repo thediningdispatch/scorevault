@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+interface ILeagueMembership {
+    function hasJoined(address player) external view returns (bool);
+}
+
 /// @title PredictionCommitment
 /// @notice Players submit score predictions before each match's lock time.
 ///         After lock, predictions are frozen and readable by PayoutDistributor.
@@ -22,6 +26,7 @@ contract PredictionCommitment {
     // ── State ────────────────────────────────────────────────────────────────
 
     address public immutable admin;
+    ILeagueMembership public immutable leagueVault;
 
     mapping(uint32 => Match)                          public matches;
     mapping(address => mapping(uint32 => Prediction)) public predictions;
@@ -43,11 +48,13 @@ contract PredictionCommitment {
     error PredictionsLocked();
     error LockTimeInPast();
     error InvalidScore();
+    error NotLeaguePlayer();
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
-    constructor(address admin_) {
+    constructor(address admin_, address leagueVault_) {
         admin = admin_;
+        leagueVault = ILeagueMembership(leagueVault_);
     }
 
     // ── Admin ────────────────────────────────────────────────────────────────
@@ -81,6 +88,7 @@ contract PredictionCommitment {
         if (!m.registered) revert MatchNotRegistered();
         if (block.timestamp >= m.lockTime) revert PredictionsLocked();
         if (predHome > 20 || predAway > 20) revert InvalidScore();
+        if (!leagueVault.hasJoined(msg.sender)) revert NotLeaguePlayer();
 
         // Track submitter list (only add once)
         if (!_hasSubmitted[matchId][msg.sender]) {

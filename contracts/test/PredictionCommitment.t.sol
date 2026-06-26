@@ -4,18 +4,32 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import "../src/PredictionCommitment.sol";
 
+contract MockLeagueMembership {
+    mapping(address => bool) public hasJoined;
+
+    function setJoined(address player, bool joined) external {
+        hasJoined[player] = joined;
+    }
+}
+
 contract PredictionCommitmentTest is Test {
     PredictionCommitment pc;
+    MockLeagueMembership membership;
 
     address admin = address(0xA);
     address alice = address(0x1);
     address bob   = address(0x2);
+    address eve   = address(0x3);
 
     uint32  constant MATCH_1 = 1;
     uint256 lockTime;
 
     function setUp() public {
-        pc = new PredictionCommitment(admin);
+        membership = new MockLeagueMembership();
+        membership.setJoined(alice, true);
+        membership.setJoined(bob, true);
+
+        pc = new PredictionCommitment(admin, address(membership));
         lockTime = block.timestamp + 1 hours;
 
         vm.prank(admin);
@@ -89,6 +103,12 @@ contract PredictionCommitmentTest is Test {
         vm.prank(alice);
         vm.expectRevert(PredictionCommitment.MatchNotRegistered.selector);
         pc.submitPrediction(99, 1, 0);
+    }
+
+    function test_nonLeaguePlayerCannotSubmit() public {
+        vm.prank(eve);
+        vm.expectRevert(PredictionCommitment.NotLeaguePlayer.selector);
+        pc.submitPrediction(MATCH_1, 1, 0);
     }
 
     // ── Submitters list ───────────────────────────────────────────────────────

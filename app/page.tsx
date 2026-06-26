@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import type { Session } from "@supabase/supabase-js";
 import {
   supabase,
   signOut,
@@ -160,6 +161,10 @@ function getTournamentDay(): number {
 const TODAY_TOURNEY_DAY = getTournamentDay();
 function getTodayGW(): 1 | 2 | 3 { return getGW(TODAY_TOURNEY_DAY); }
 
+function isMatchLocked(m: WCMatch): boolean {
+  return Date.now() >= new Date(m.kickoff).getTime();
+}
+
 const AVATARS = ["⚽", "🦁", "🐯", "🦊", "🐺", "🦅", "🐉", "🦄"];
 
 // ── Shared: flag circle ───────────────────────────────────────────────────────
@@ -244,11 +249,12 @@ function Countdown({ day }: { day: number }) {
 }
 
 // ── Picks: match card ─────────────────────────────────────────────────────────
-function MatchCard({ match: m, pick, onPick, isSaved = false }: {
+function MatchCard({ match: m, pick, onPick, isSaved = false, locked = false }: {
   match: WCMatch;
   pick: { home: ScoreVal; away: ScoreVal };
   onPick: (h: ScoreVal, a: ScoreVal) => void;
   isSaved?: boolean;
+  locked?: boolean;
 }) {
   const total = m.home.pct + m.draw.pct + m.away.pct;
   const hPct = Math.round((m.home.pct / total) * 100);
@@ -264,12 +270,13 @@ function MatchCard({ match: m, pick, onPick, isSaved = false }: {
       <div style={{
         flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
         padding: "7px 0", borderRadius: 10, gap: 1,
-        background: fav ? "rgba(21,169,87,0.08)" : rare ? "rgba(223,83,83,0.07)" : P.gray,
-        border: `1px solid ${fav ? "rgba(21,169,87,0.25)" : rare ? "rgba(223,83,83,0.18)" : "transparent"}`,
+        background: locked ? P.gray : fav ? "rgba(21,169,87,0.08)" : rare ? "rgba(223,83,83,0.07)" : P.gray,
+        border: `1px solid ${locked ? "transparent" : fav ? "rgba(21,169,87,0.25)" : rare ? "rgba(223,83,83,0.18)" : "transparent"}`,
+        opacity: locked ? 0.5 : 1,
       }}>
         <span style={{ fontSize: 9, fontWeight: 800, color: P.muted, letterSpacing: "0.04em" }}>{label}</span>
-        <span style={{ fontSize: 16, fontWeight: 900, color: fav ? P.green : rare ? P.red : P.ink, lineHeight: 1 }}>{p}</span>
-        <span style={{ fontSize: 8, fontWeight: 700, color: fav ? P.green : rare ? P.red : P.muted, opacity: 0.7 }}>pts</span>
+        <span style={{ fontSize: 16, fontWeight: 900, color: locked ? P.muted : fav ? P.green : rare ? P.red : P.ink, lineHeight: 1 }}>{p}</span>
+        <span style={{ fontSize: 8, fontWeight: 700, color: P.muted, opacity: 0.7 }}>pts</span>
       </div>
     );
   }
@@ -278,24 +285,31 @@ function MatchCard({ match: m, pick, onPick, isSaved = false }: {
     width: 52, height: 58, padding: 0, textAlign: "center" as const,
     fontSize: 24, fontWeight: 700, outline: "none", border: "none",
     borderRadius: 10, transition: "all 0.15s",
-    background: val !== "" ? P.blueBg : P.gray,
-    color: val !== "" ? P.blue : P.ink,
-    boxShadow: val !== "" ? `inset 0 0 0 1.5px ${P.blue}` : `inset 0 0 0 1.5px ${P.border}`,
+    background: locked ? P.gray : val !== "" ? P.blueBg : P.gray,
+    color: locked ? P.muted : val !== "" ? P.blue : P.ink,
+    boxShadow: locked ? `inset 0 0 0 1.5px ${P.border}` : val !== "" ? `inset 0 0 0 1.5px ${P.blue}` : `inset 0 0 0 1.5px ${P.border}`,
+    cursor: locked ? "not-allowed" : "text",
   });
+
+  const borderColor = isSaved ? P.blue : locked ? P.border : P.border;
+  const cardBg = locked ? "#fafbfc" : P.white;
 
   return (
     <div style={{
-      background: P.white, borderRadius: 16,
-      border: `2px solid ${isSaved ? P.blue : P.border}`,
-      boxShadow: isSaved ? `0 0 0 1px ${P.blueBg}, 0 5px 18px rgba(49,87,246,0.10)` : "0 5px 18px rgba(31,39,84,0.055)",
+      background: cardBg, borderRadius: 16,
+      border: `2px solid ${borderColor}`,
+      boxShadow: isSaved && !locked ? `0 0 0 1px ${P.blueBg}, 0 5px 18px rgba(49,87,246,0.10)` : "0 5px 18px rgba(31,39,84,0.055)",
       marginBottom: 10, overflow: "hidden", transition: "border-color 0.2s, box-shadow 0.2s",
+      opacity: locked ? 0.75 : 1,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 13px 0", color: P.muted, fontSize: 11 }}>
         <span>{m.date} · {m.time} CET</span>
         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9 }}>
-          {isSaved
-            ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: P.blue, display: "inline-block" }} /><span style={{ color: P.blue, fontWeight: 800 }}>Saved</span></>
-            : <><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c2c5d0", display: "inline-block" }} />Open</>
+          {locked
+            ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: P.red, display: "inline-block" }} /><span style={{ color: P.red, fontWeight: 800 }}>Locked</span></>
+            : isSaved
+              ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: P.blue, display: "inline-block" }} /><span style={{ color: P.blue, fontWeight: 800 }}>Saved</span></>
+              : <><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c2c5d0", display: "inline-block" }} />Open</>
           }
         </span>
       </div>
@@ -307,14 +321,14 @@ function MatchCard({ match: m, pick, onPick, isSaved = false }: {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input
-              type="number" min={0} max={99} value={pick.home}
-              onChange={e => onPick(e.target.value === "" ? "" : Math.min(99, parseInt(e.target.value) || 0), pick.away)}
+              type="number" min={0} max={99} value={pick.home} readOnly={locked}
+              onChange={locked ? undefined : e => onPick(e.target.value === "" ? "" : Math.min(99, parseInt(e.target.value) || 0), pick.away)}
               style={inputSt(pick.home)}
             />
             <span style={{ fontSize: 16, fontWeight: 700, color: P.muted }}>:</span>
             <input
-              type="number" min={0} max={99} value={pick.away}
-              onChange={e => onPick(pick.home, e.target.value === "" ? "" : Math.min(99, parseInt(e.target.value) || 0))}
+              type="number" min={0} max={99} value={pick.away} readOnly={locked}
+              onChange={locked ? undefined : e => onPick(pick.home, e.target.value === "" ? "" : Math.min(99, parseInt(e.target.value) || 0))}
               style={inputSt(pick.away)}
             />
           </div>
@@ -398,8 +412,10 @@ function PicksTab({ userId, onShowLeagueSetup }: { userId: string | null; onShow
   }, [userId]);
 
   const gwMatches = WC_MATCHES.filter(m => getGW(m.day) === gw);
-  const filledMatches = gwMatches.filter(m => { const p = picks[m.id]; return p && p.home !== "" && p.away !== ""; });
+  const openMatches = gwMatches.filter(m => !isMatchLocked(m));
+  const filledMatches = openMatches.filter(m => { const p = picks[m.id]; return p && p.home !== "" && p.away !== ""; });
   const filled = filledMatches.length;
+  const openCount = openMatches.length;
 
   async function save() {
     if (!userId || filled === 0) return;
@@ -452,6 +468,7 @@ function PicksTab({ userId, onShowLeagueSetup }: { userId: string | null; onShow
             pick={picks[m.id] ?? { home: "", away: "" }}
             onPick={(h, a) => setPicks(prev => ({ ...prev, [m.id]: { home: h, away: a } }))}
             isSaved={savedPickIds.has(m.id)}
+            locked={isMatchLocked(m)}
           />
         ))}
         <div style={{ height: 88 }} />
@@ -470,7 +487,7 @@ function PicksTab({ userId, onShowLeagueSetup }: { userId: string | null; onShow
           boxShadow: filled > 0 && !justSaved ? "0 9px 24px rgba(49,87,246,0.24)" : "none",
           transition: "all 0.2s", pointerEvents: "auto",
         }}>
-          {justSaved ? "✓ Picks saved!" : saving ? "Saving…" : filled === 0 ? "Enter a prediction above" : `🔒 Lock ${filled} of ${gwMatches.length} picks`}
+          {justSaved ? "✓ Picks saved!" : saving ? "Saving…" : openCount === 0 ? "All matches locked" : filled === 0 ? "Enter a prediction above" : `🔒 Lock ${filled} of ${openCount} picks`}
         </button>
       </div>
     </div>
@@ -1445,11 +1462,11 @@ function PromoPopup({ onDismiss, onDone }: { onDismiss: () => void; onDone: () =
 }
 
 // ── Auth screen ───────────────────────────────────────────────────────────────
-function AuthScreen({ onGuest }: { onGuest: () => void }) {
+function AuthScreen({ onGuest }: { onGuest: () => Promise<void> }) {
   const [loading, setLoading] = useState<"google" | "apple" | "guest" | null>(null);
   const [error, setError]     = useState("");
 
-  const redirect = typeof window !== "undefined" ? window.location.origin : "";
+  const redirect = typeof window !== "undefined" ? `${window.location.origin}/` : "";
 
   async function signInGoogle() {
     setLoading("google"); setError("");
@@ -1465,8 +1482,12 @@ function AuthScreen({ onGuest }: { onGuest: () => void }) {
 
   async function signInGuest() {
     setLoading("guest"); setError("");
-    const { error: e } = await supabase.auth.signInAnonymously();
-    if (e) { setError("Something went wrong. Try again."); setLoading(null); }
+    try {
+      await onGuest();
+    } catch {
+      setError("Something went wrong. Try again.");
+      setLoading(null);
+    }
   }
 
   const GoogleIcon = (
@@ -1749,16 +1770,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) { setScreen("auth"); return; }
+    let mounted = true;
+
+    async function handleSession(session: Session | null) {
+      if (!mounted) return;
+      if (!session?.user) {
+        setAuthUserId(null);
+        setScreen("auth");
+        return;
+      }
+
       setAuthUserId(session.user.id);
       // Pre-fill username from Google/Apple OAuth metadata
       const meta = session.user.user_metadata;
       const oauthName = meta?.full_name || meta?.name || "";
       if (oauthName) setSuggestedName(oauthName.split(" ")[0]); // first name only
       await advance(session.user.id);
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      void handleSession(data.session);
     });
-    return () => subscription.unsubscribe();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      await handleSession(session);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [advance]);
 
   useEffect(() => {
@@ -1791,7 +1832,7 @@ export default function App() {
   );
 
   if (screen === "loading")       return null;
-  if (screen === "auth")          return <Wrapper full><AuthScreen onGuest={async () => { const { error } = await supabase.auth.signInAnonymously(); if (error) console.error(error); }} /></Wrapper>;
+  if (screen === "auth")          return <Wrapper full><AuthScreen onGuest={async () => { const { error } = await supabase.auth.signInAnonymously(); if (error) throw error; }} /></Wrapper>;
   if (screen === "profile_setup") return <Wrapper full><Onboarding suggestedName={suggestedName} onDone={async (name, avatar) => { if (!authUserId) return; await upsertProfile(authUserId, name, avatar); setProfile({ name, avatar }); await advance(authUserId); }} /></Wrapper>;
 
   return (

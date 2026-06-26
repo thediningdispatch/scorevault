@@ -66,7 +66,9 @@ contract LeagueFactoryTest is Test {
 
         // Check alice is admin in each contract
         assertEq(LeagueVault(league.vault).admin(),            alice);
+        assertEq(LeagueVault(league.vault).distributor(),      league.distributor);
         assertEq(PredictionCommitment(league.predictions).admin(), alice);
+        assertEq(address(PredictionCommitment(league.predictions).leagueVault()), league.vault);
         assertEq(OracleAdapter(league.oracle).admin(),         alice);
         assertEq(PayoutDistributor(league.distributor).admin(), alice);
     }

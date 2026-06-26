@@ -83,7 +83,7 @@ contract LeagueFactory {
             admin
         );
 
-        PredictionCommitment predictions = new PredictionCommitment(admin);
+        PredictionCommitment predictions = new PredictionCommitment(admin, address(vault));
 
         OracleAdapter oracle = new OracleAdapter(admin);
 
@@ -95,6 +95,8 @@ contract LeagueFactory {
             address(vault),
             p.payoutBps
         );
+
+        vault.setDistributor(address(distributor));
 
         leagueId = leagueCount++;
 

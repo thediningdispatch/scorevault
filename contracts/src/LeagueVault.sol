@@ -16,6 +16,8 @@ contract LeagueVault {
     uint256 public immutable maxPlayers;
     uint256 public immutable joinDeadline; // unix timestamp — no new entries after this
     address public immutable admin;        // controls distribute / cancel
+    address public immutable configurator; // deployment helper allowed to wire distributor once
+    address public distributor;            // PayoutDistributor allowed to release funds
 
     enum Status { Open, Active, Settled, Cancelled }
     Status public status;
@@ -27,6 +29,7 @@ contract LeagueVault {
 
     event PlayerJoined(address indexed player, uint256 fee);
     event LeagueStarted(uint256 playerCount, uint256 totalPool);
+    event DistributorSet(address indexed distributor);
     event Distributed(address indexed recipient, uint256 amount);
     event Cancelled(uint256 refundedPlayers);
 
@@ -41,6 +44,11 @@ contract LeagueVault {
     error LeagueFull();
     error PayoutMismatch();
     error ZeroPlayers();
+    error RecipientNotPlayer();
+    error DuplicateRecipient();
+    error NotDistributor();
+    error DistributorAlreadySet();
+    error ZeroAddress();
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
@@ -56,6 +64,7 @@ contract LeagueVault {
         maxPlayers = maxPlayers_;
         joinDeadline = joinDeadline_;
         admin = admin_;
+        configurator = msg.sender;
         status = Status.Open;
     }
 
@@ -88,6 +97,16 @@ contract LeagueVault {
         emit LeagueStarted(_players.length, totalPool());
     }
 
+    /// @notice Set the payout distributor once, after deployment.
+    function setDistributor(address distributor_) external {
+        if (msg.sender != admin && msg.sender != configurator) revert NotAdmin();
+        if (distributor != address(0)) revert DistributorAlreadySet();
+        if (distributor_ == address(0)) revert ZeroAddress();
+
+        distributor = distributor_;
+        emit DistributorSet(distributor_);
+    }
+
     /// @notice Send winnings to each player. Amounts must add up to exactly the pool.
     /// @param recipients  List of winner addresses (can be a subset of players)
     /// @param amounts     USDC amount for each recipient (same order)
@@ -95,13 +114,17 @@ contract LeagueVault {
         address[] calldata recipients,
         uint256[] calldata amounts
     ) external {
-        if (msg.sender != admin) revert NotAdmin();
+        if (msg.sender != distributor) revert NotDistributor();
         if (status != Status.Active) revert LeagueNotActive();
         if (recipients.length != amounts.length) revert PayoutMismatch();
 
         // Verify amounts sum equals the pool (no money left behind, no overpay)
         uint256 total;
         for (uint256 i = 0; i < amounts.length; i++) {
+            if (!hasJoined[recipients[i]]) revert RecipientNotPlayer();
+            for (uint256 j = 0; j < i; j++) {
+                if (recipients[j] == recipients[i]) revert DuplicateRecipient();
+            }
             total += amounts[i];
         }
         if (total != totalPool()) revert PayoutMismatch();

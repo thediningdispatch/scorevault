@@ -30,6 +30,7 @@ contract LeagueVaultTest is Test {
     LeagueVault vault;
 
     address admin   = address(0xA);
+    address distributor = address(0xD);
     address alice   = address(0x1);
     address bob     = address(0x2);
     address charlie = address(0x3);
@@ -102,6 +103,7 @@ contract LeagueVaultTest is Test {
     function test_distributeWinnings() public {
         vm.prank(alice); vault.join();
         vm.prank(bob);   vault.join();
+        vm.prank(admin); vault.setDistributor(distributor);
         vm.prank(admin); vault.startLeague();
 
         address[] memory recipients = new address[](2);
@@ -109,7 +111,7 @@ contract LeagueVaultTest is Test {
         recipients[0] = alice; amounts[0] = 15_000_000; // 15 USDC (wins 5)
         recipients[1] = bob;   amounts[1] =  5_000_000; // 5 USDC (loses 5)
 
-        vm.prank(admin);
+        vm.prank(distributor);
         vault.distribute(recipients, amounts);
 
         assertEq(usdc.balanceOf(alice), 15_000_000);
@@ -119,15 +121,57 @@ contract LeagueVaultTest is Test {
 
     function test_distributeWrongTotalReverts() public {
         vm.prank(alice); vault.join();
+        vm.prank(admin); vault.setDistributor(distributor);
         vm.prank(admin); vault.startLeague();
 
         address[] memory recipients = new address[](1);
         uint256[] memory amounts    = new uint256[](1);
         recipients[0] = alice; amounts[0] = 5_000_000; // less than pool
 
-        vm.prank(admin);
+        vm.prank(distributor);
         vm.expectRevert(LeagueVault.PayoutMismatch.selector);
         vault.distribute(recipients, amounts);
+    }
+
+    function test_distributeToNonPlayerReverts() public {
+        vm.prank(alice); vault.join();
+        vm.prank(admin); vault.setDistributor(distributor);
+        vm.prank(admin); vault.startLeague();
+
+        address[] memory recipients = new address[](1);
+        uint256[] memory amounts    = new uint256[](1);
+        recipients[0] = bob; amounts[0] = ENTRY;
+
+        vm.prank(distributor);
+        vm.expectRevert(LeagueVault.RecipientNotPlayer.selector);
+        vault.distribute(recipients, amounts);
+    }
+
+    function test_distributeDuplicateRecipientReverts() public {
+        vm.prank(alice); vault.join();
+        vm.prank(bob);   vault.join();
+        vm.prank(admin); vault.setDistributor(distributor);
+        vm.prank(admin); vault.startLeague();
+
+        address[] memory recipients = new address[](2);
+        uint256[] memory amounts    = new uint256[](2);
+        recipients[0] = alice; amounts[0] = ENTRY;
+        recipients[1] = alice; amounts[1] = ENTRY;
+
+        vm.prank(distributor);
+        vm.expectRevert(LeagueVault.DuplicateRecipient.selector);
+        vault.distribute(recipients, amounts);
+    }
+
+    function test_setDistributorOnce() public {
+        vm.prank(admin);
+        vault.setDistributor(distributor);
+
+        assertEq(vault.distributor(), distributor);
+
+        vm.prank(admin);
+        vm.expectRevert(LeagueVault.DistributorAlreadySet.selector);
+        vault.setDistributor(address(0xE));
     }
 
     // ── Cancel ────────────────────────────────────────────────────────────────
@@ -144,8 +188,9 @@ contract LeagueVaultTest is Test {
         assertEq(uint(vault.status()), uint(LeagueVault.Status.Cancelled));
     }
 
-    function test_nonAdminCannotDistribute() public {
+    function test_nonDistributorCannotDistribute() public {
         vm.prank(alice); vault.join();
+        vm.prank(admin); vault.setDistributor(distributor);
         vm.prank(admin); vault.startLeague();
 
         address[] memory r = new address[](1);
@@ -153,7 +198,7 @@ contract LeagueVaultTest is Test {
         r[0] = alice; a[0] = ENTRY;
 
         vm.prank(alice);
-        vm.expectRevert(LeagueVault.NotAdmin.selector);
+        vm.expectRevert(LeagueVault.NotDistributor.selector);
         vault.distribute(r, a);
     }
 }

@@ -26,6 +26,7 @@ interface IOracleAdapter {
 interface ILeagueVault {
     function getPlayers() external view returns (address[] memory);
     function totalPool() external view returns (uint256);
+    function distribute(address[] calldata recipients, uint256[] calldata amounts) external;
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ contract PayoutDistributor {
 
     event MatchScored(uint32 indexed matchId, uint256 playersScored);
     event PayoutsReady(address[] players, uint256[] amounts);
+    event PayoutsDistributed(address[] players, uint256[] amounts);
 
     // ── Errors ────────────────────────────────────────────────────────────────
 
@@ -116,6 +118,17 @@ contract PayoutDistributor {
         emit MatchScored(matchId, submitters.length);
     }
 
+    /// @notice Compute final payouts and release the vault pool in one transaction.
+    ///         Admin controls timing, but payout amounts are derived from on-chain points.
+    function distributeComputedPayouts() external {
+        if (msg.sender != admin) revert NotAdmin();
+
+        (address[] memory players, uint256[] memory amounts) = _computePayouts();
+        vault.distribute(players, amounts);
+
+        emit PayoutsDistributed(players, amounts);
+    }
+
     // ── Views ─────────────────────────────────────────────────────────────────
 
     /// @notice Returns all vault players sorted by total points (descending).
@@ -138,6 +151,13 @@ contract PayoutDistributor {
     ///         Ties are handled: tied players merge their prize tiers and split equally.
     function computePayouts()
         external view
+        returns (address[] memory players, uint256[] memory amounts)
+    {
+        return _computePayouts();
+    }
+
+    function _computePayouts()
+        internal view
         returns (address[] memory players, uint256[] memory amounts)
     {
         players = vault.getPlayers();
@@ -190,7 +210,6 @@ contract PayoutDistributor {
         if (totalPaid < pool && n > 0) {
             amounts[0] += pool - totalPaid;
         }
-
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
