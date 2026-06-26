@@ -13,19 +13,20 @@ import type { League, LeagueMember, LeaderboardEntry, Pick as DBPick } from "./l
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
-  bg:      "#e9ecf8",
-  canvas:  "#f5f6fb",
+  bg:      "#050505",
+  canvas:  "#f7f7f4",
   white:   "#ffffff",
-  border:  "#e4e6ef",
-  blue:    "#3157f6",
-  blueBg:  "#eef0ff",
-  ink:     "#171927",
-  muted:   "#777b8e",
-  gray:    "#f4f5f9",
-  green:   "#15a957",
-  greenBg: "rgba(21,169,87,0.10)",
-  red:     "#df5353",
+  border:  "#deded8",
+  blue:    "#111111",
+  blueBg:  "#ededeb",
+  ink:     "#111111",
+  muted:   "#70706a",
+  gray:    "#eeeeeb",
+  green:   "#111111",
+  greenBg: "rgba(17,17,17,0.08)",
+  red:     "#3f3f3a",
 };
+const DARK_SCREEN = "linear-gradient(160deg, #050505 0%, #171717 52%, #000000 100%)";
 
 // ── Points formula ────────────────────────────────────────────────────────────
 function pts(pct: number) { return Math.round(22 * Math.pow(100 / Math.max(1, pct), 1.23)); }
@@ -173,7 +174,7 @@ function Flag({ emoji, size = 72 }: { emoji: string; size?: number }) {
     <div style={{
       width: size, height: size, borderRadius: "50%", flexShrink: 0,
       background: P.gray, display: "flex", alignItems: "center", justifyContent: "center",
-      boxShadow: "0 4px 12px rgba(31,39,84,0.08)",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
     }}>
       <span style={{ fontSize: size * 0.68, lineHeight: 1 }}>{emoji}</span>
     </div>
@@ -201,7 +202,7 @@ function DayStrip({ selected, onSelect }: { selected: number; onSelect: (d: numb
             display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
             minWidth: 48, padding: "9px 6px", border: "none", cursor: "pointer",
             borderRadius: 11, background: active ? P.blueBg : "transparent",
-            boxShadow: active ? "inset 0 0 0 1px #dce0ff" : "none",
+            boxShadow: active ? `inset 0 0 0 1px ${P.border}` : "none",
           }}>
             <strong style={{ fontSize: 13, fontWeight: 800, color: active ? P.blue : P.ink }}>
               {isToday ? "Today" : `Day ${day}`}
@@ -270,8 +271,8 @@ function MatchCard({ match: m, pick, onPick, isSaved = false, locked = false }: 
       <div style={{
         flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
         padding: "7px 0", borderRadius: 10, gap: 1,
-        background: locked ? P.gray : fav ? "rgba(21,169,87,0.08)" : rare ? "rgba(223,83,83,0.07)" : P.gray,
-        border: `1px solid ${locked ? "transparent" : fav ? "rgba(21,169,87,0.25)" : rare ? "rgba(223,83,83,0.18)" : "transparent"}`,
+        background: locked ? P.gray : fav ? "rgba(17,17,17,0.08)" : rare ? "rgba(17,17,17,0.05)" : P.gray,
+        border: `1px solid ${locked ? "transparent" : fav ? "rgba(17,17,17,0.24)" : rare ? "rgba(17,17,17,0.14)" : "transparent"}`,
         opacity: locked ? 0.5 : 1,
       }}>
         <span style={{ fontSize: 9, fontWeight: 800, color: P.muted, letterSpacing: "0.04em" }}>{label}</span>
@@ -298,7 +299,7 @@ function MatchCard({ match: m, pick, onPick, isSaved = false, locked = false }: 
     <div style={{
       background: cardBg, borderRadius: 16,
       border: `2px solid ${borderColor}`,
-      boxShadow: isSaved && !locked ? `0 0 0 1px ${P.blueBg}, 0 5px 18px rgba(49,87,246,0.10)` : "0 5px 18px rgba(31,39,84,0.055)",
+      boxShadow: isSaved && !locked ? `0 0 0 1px ${P.blueBg}, 0 5px 18px rgba(0,0,0,0.10)` : "0 5px 18px rgba(0,0,0,0.055)",
       marginBottom: 10, overflow: "hidden", transition: "border-color 0.2s, box-shadow 0.2s",
       opacity: locked ? 0.75 : 1,
     }}>
@@ -482,9 +483,9 @@ function PicksTab({ userId, onShowLeagueSetup }: { userId: string | null; onShow
         <button onClick={save} disabled={filled === 0 || saving} style={{
           width: "100%", minHeight: 52, borderRadius: 13, border: "none",
           cursor: filled === 0 ? "default" : "pointer", fontSize: 14, fontWeight: 750,
-          background: justSaved ? P.green : filled === 0 ? P.border : `linear-gradient(180deg, #4265ff, ${P.blue})`,
+          background: justSaved ? P.green : filled === 0 ? P.border : `linear-gradient(180deg, #222222, ${P.blue})`,
           color: filled === 0 ? P.muted : "#fff",
-          boxShadow: filled > 0 && !justSaved ? "0 9px 24px rgba(49,87,246,0.24)" : "none",
+          boxShadow: filled > 0 && !justSaved ? "0 9px 24px rgba(0,0,0,0.24)" : "none",
           transition: "all 0.2s", pointerEvents: "auto",
         }}>
           {justSaved ? "✓ Picks saved!" : saving ? "Saving…" : openCount === 0 ? "All matches locked" : filled === 0 ? "Enter a prediction above" : `🔒 Lock ${filled} of ${openCount} picks`}
@@ -574,10 +575,10 @@ function ResultsTab({ userId }: { userId: string | null }) {
           const earnedPts = exact ? pts(winPct) * 3 : correct ? pts(winPct) : 0;
 
           return (
-            <div key={id} style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, boxShadow: "0 5px 18px rgba(31,39,84,0.055)", marginBottom: 10, overflow: "hidden" }}>
+            <div key={id} style={{ background: P.white, borderRadius: 16, border: `1px solid ${P.border}`, boxShadow: "0 5px 18px rgba(0,0,0,0.055)", marginBottom: 10, overflow: "hidden" }}>
               <div style={{ padding: "10px 13px 0", display: "flex", gap: 6, alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 11, color: P.muted }}>{m.date} · {m.time} CET</span>
-                {!result.is_final && <span style={{ fontSize: 10, fontWeight: 800, color: P.red, padding: "2px 7px", borderRadius: 6, background: "rgba(223,83,83,0.1)" }}>LIVE</span>}
+                {!result.is_final && <span style={{ fontSize: 10, fontWeight: 800, color: P.red, padding: "2px 7px", borderRadius: 6, background: "rgba(17,17,17,0.08)" }}>LIVE</span>}
                 {result.is_final && <span style={{ fontSize: 10, fontWeight: 700, color: P.muted }}>FT</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", padding: "10px 12px 14px", gap: 8 }}>
@@ -621,7 +622,7 @@ function DepositTab() {
   return (
     <div className="no-scrollbar" style={{ flex: 1, overflowY: "auto", background: P.canvas, padding: "0 16px 32px" }}>
       <div style={{ paddingTop: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 28 }}>
-        <div style={{ width: 64, height: 64, borderRadius: 18, background: P.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: "0 8px 24px rgba(49,87,246,0.28)", marginBottom: 4 }}>💳</div>
+        <div style={{ width: 64, height: 64, borderRadius: 18, background: P.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: "0 8px 24px rgba(0,0,0,0.24)", marginBottom: 4 }}>💳</div>
         <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: P.ink }}>Deposit</h2>
         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: P.blue, background: P.blueBg, padding: "4px 10px", borderRadius: 6 }}>COMING SOON</div>
       </div>
@@ -676,7 +677,7 @@ function MyLeaguesTab({ league, user, authUserId, onNewLeague }: { league: Leagu
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: P.canvas }}>
 
       {/* Global ranking hero */}
-      <div style={{ background: `linear-gradient(135deg, #253ccf, ${P.blue})`, padding: "18px 16px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ background: `linear-gradient(135deg, #050505, ${P.blue})`, padding: "18px 16px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, marginBottom: 4 }}>GLOBAL RANKING</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", lineHeight: 1 }}>
@@ -740,7 +741,7 @@ function MyLeaguesTab({ league, user, authUserId, onNewLeague }: { league: Leagu
           <button onClick={onNewLeague} style={{
             width: "100%", padding: "14px 0", borderRadius: 14, border: "none",
             background: P.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer",
-            boxShadow: "0 6px 18px rgba(49,87,246,0.22)",
+            boxShadow: "0 6px 18px rgba(0,0,0,0.20)",
           }}>+ New League</button>
         </div>
 
@@ -841,7 +842,7 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
       {/* Hamburger drawer overlay */}
       {drawerOpen && (
         <div onClick={() => { setDrawerOpen(false); setDrawerSection(null); }} style={{ position: "absolute", inset: 0, zIndex: 50, background: "rgba(15,18,45,0.5)", backdropFilter: "blur(2px)" }}>
-          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 280, background: P.white, boxShadow: "4px 0 32px rgba(31,39,84,0.16)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 280, background: P.white, boxShadow: "4px 0 32px rgba(0,0,0,0.16)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
             <div style={{ padding: "20px 18px 12px", borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 10 }}>
               {drawerSection && (
                 <button onClick={() => setDrawerSection(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: P.muted, padding: 0, lineHeight: 1 }}>←</button>
@@ -882,7 +883,7 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
                     </div>
                   </div>
                 ))}
-                <div style={{ marginTop: 4, padding: "12px 14px", borderRadius: 12, background: P.blueBg, border: `1px solid #d9ddff` }}>
+                <div style={{ marginTop: 4, padding: "12px 14px", borderRadius: 12, background: P.blueBg, border: `1px solid ${P.border}` }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: P.blue, marginBottom: 4 }}>Pick value</div>
                   <div style={{ fontSize: 12, color: P.muted, lineHeight: 1.5 }}>Points are calculated from Polymarket odds snapshotted 15 min before kick-off. Rarer outcomes pay more.</div>
                 </div>
@@ -936,7 +937,7 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
           {[0,1,2].map(i => <span key={i} style={{ width: 16, height: 2, background: P.ink, borderRadius: 2, display: "block" }} />)}
         </button>
 
-        <button onClick={() => setPickingAvatar(v => !v)} style={{ width: 64, height: 64, borderRadius: "50%", background: P.gray, border: `3px solid ${P.blue}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: "0 4px 16px rgba(49,87,246,0.18)", cursor: "pointer", position: "relative" }}>
+        <button onClick={() => setPickingAvatar(v => !v)} style={{ width: 64, height: 64, borderRadius: "50%", background: P.gray, border: `3px solid ${P.blue}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: "0 4px 16px rgba(0,0,0,0.14)", cursor: "pointer", position: "relative" }}>
           {user.avatar}
           <span style={{ position: "absolute", bottom: 0, right: 0, width: 18, height: 18, borderRadius: "50%", background: P.blue, color: "#fff", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</span>
         </button>
@@ -1054,7 +1055,7 @@ function ProfileTab({ league, membership, user, authUserId, onSignOut, onProfile
                   <div key={m.user_id} style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${P.border}` }}>
                     <span style={{ fontSize: 22, marginRight: 10 }}>{m.avatar}</span>
                     <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: P.ink }}>{m.name}</span>
-                    <button onClick={() => togglePaid(m)} disabled={toggling === m.user_id} style={{ padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800, background: m.paid ? P.greenBg : "rgba(223,83,83,0.1)", color: m.paid ? P.green : P.red, opacity: toggling === m.user_id ? 0.5 : 1 }}>
+                    <button onClick={() => togglePaid(m)} disabled={toggling === m.user_id} style={{ padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800, background: m.paid ? P.greenBg : "rgba(17,17,17,0.08)", color: m.paid ? P.green : P.red, opacity: toggling === m.user_id ? 0.5 : 1 }}>
                       {toggling === m.user_id ? "…" : m.paid ? "✓ Paid" : "Mark paid"}
                     </button>
                   </div>
@@ -1141,7 +1142,7 @@ function Onboarding({ onDone, suggestedName = "" }: { onDone: (name: string, ava
   const valid = name.trim().length >= 2;
 
   return (
-    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: DARK_SCREEN, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
 
       {BG_FLOATS.map((f, i) => (
         <span key={i} style={{ position: "absolute", top: f.top, left: f.left, fontSize: f.size, opacity: 0.12, pointerEvents: "none", userSelect: "none", animation: `sv-float ${f.dur} ease-in-out ${f.delay} infinite` }}>{f.emoji}</span>
@@ -1172,7 +1173,7 @@ function Onboarding({ onDone, suggestedName = "" }: { onDone: (name: string, ava
               />
               <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
                 <button onClick={() => valid && setStep(2)} disabled={!valid}
-                  style={{ width: "100%", padding: 17, borderRadius: 16, border: "none", background: valid ? "#fff" : "rgba(255,255,255,0.18)", color: valid ? P.blue : "rgba(255,255,255,0.35)", fontSize: 15, fontWeight: 900, cursor: valid ? "pointer" : "default", transition: "all 0.2s" }}>
+                  style={{ width: "100%", padding: 17, borderRadius: 16, border: "none", background: valid ? "#fff" : "rgba(255,255,255,0.18)", color: valid ? P.ink : "rgba(255,255,255,0.35)", fontSize: 15, fontWeight: 900, cursor: valid ? "pointer" : "default", transition: "all 0.2s" }}>
                   Continue →
                 </button>
                 {valid && <div style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)", animation: "sv-shine 1.6s ease 0.9s infinite", pointerEvents: "none" }} />}
@@ -1187,7 +1188,7 @@ function Onboarding({ onDone, suggestedName = "" }: { onDone: (name: string, ava
               </div>
               <div style={{ position: "relative", overflow: "hidden", borderRadius: 16 }}>
                 <button onClick={() => onDone(name.trim(), avatar)}
-                  style={{ width: "100%", padding: 17, borderRadius: 16, border: "none", background: "#fff", color: P.blue, fontSize: 15, fontWeight: 900, cursor: "pointer" }}>
+                  style={{ width: "100%", padding: 17, borderRadius: 16, border: "none", background: "#fff", color: P.ink, fontSize: 15, fontWeight: 900, cursor: "pointer" }}>
                   Let&apos;s play! 🚀
                 </button>
                 <div style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)", animation: "sv-shine 1.6s ease 0.3s infinite", pointerEvents: "none" }} />
@@ -1218,7 +1219,7 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
       </svg>
     )},
     { id: "deposit", label: "Deposit", center: true, icon: (
-      <div style={{ width: 44, height: 44, borderRadius: 14, background: tab === "deposit" ? P.blue : `linear-gradient(145deg, #3a66ff, ${P.blue})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(49,87,246,0.35)", marginTop: -10 }}>
+      <div style={{ width: 44, height: 44, borderRadius: 14, background: tab === "deposit" ? P.blue : `linear-gradient(145deg, #272727, ${P.blue})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,0,0,0.24)", marginTop: -10 }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
         </svg>
@@ -1290,7 +1291,7 @@ function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
         margin: "0 10px 10px",
         borderRadius: 20,
         background: P.white,
-        boxShadow: "0 -2px 40px rgba(31,39,84,0.16), 0 0 0 1px rgba(30,37,72,0.06)",
+        boxShadow: "0 -2px 40px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.06)",
         padding: "18px 18px 16px",
         position: "relative",
       }}>
@@ -1308,7 +1309,7 @@ function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
           <div style={{
             width: 46, height: 46, borderRadius: 13, flexShrink: 0,
             background: P.blue, display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 22, boxShadow: "0 4px 14px rgba(49,87,246,0.35)",
+            fontSize: 22, boxShadow: "0 4px 14px rgba(0,0,0,0.24)",
           }}>⚽</div>
           <div>
             <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: P.ink }}>Add to Home Screen</p>
@@ -1319,7 +1320,7 @@ function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
         {/* step */}
         <div style={{
           padding: "12px 14px", borderRadius: 12,
-          background: P.blueBg, border: `1px solid #d9ddff`,
+          background: P.blueBg, border: `1px solid ${P.border}`,
           display: "flex", alignItems: "center", gap: 10, marginBottom: 14,
         }}>
           <span style={{ animation: "sv-tap-pulse 1.4s ease-in-out infinite", display: "flex" }}>
@@ -1384,18 +1385,18 @@ function PromoPopup({ onDismiss, onDone }: { onDismiss: () => void; onDone: () =
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ position: "relative", width: "100%", maxWidth: 340, borderRadius: 22, background: P.white, boxShadow: "0 32px 80px rgba(31,39,84,0.28), 0 0 0 1px rgba(30,37,72,0.06)", overflow: "hidden" }}
+        style={{ position: "relative", width: "100%", maxWidth: 340, borderRadius: 22, background: P.white, boxShadow: "0 32px 80px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.06)", overflow: "hidden" }}
       >
         {/* gradient header */}
-        <div style={{ background: "linear-gradient(135deg, #253ccf 0%, #3157f6 55%, #172784 100%)", padding: "26px 24px 20px" }}>
-          <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: "#1637d5", background: "#fff", width: "fit-content", padding: "5px 9px", borderRadius: 5, marginBottom: 14 }}>
+        <div style={{ background: DARK_SCREEN, padding: "26px 24px 20px" }}>
+          <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.09em", color: P.ink, background: "#fff", width: "fit-content", padding: "5px 9px", borderRadius: 5, marginBottom: 14 }}>
             COMING SOON · WC2026
           </div>
           <div style={{ fontSize: 36, marginBottom: 8 }}>🏟️</div>
           <h2 style={{ margin: "0 0 8px", fontFamily: "Impact, sans-serif", fontSize: 26, color: "#fff", letterSpacing: "0.02em", lineHeight: 1.1 }}>
             Win 2 seats<br />in NYC
           </h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#c8d0ff", lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.72)", lineHeight: 1.5 }}>
             Right now ScoreVault is free — predict scores &amp; climb the board with your crew. <strong style={{ color: "#fff" }}>Soon you&apos;ll stake real money</strong> and play for keeps.
           </p>
         </div>
@@ -1408,7 +1409,7 @@ function PromoPopup({ onDismiss, onDone }: { onDismiss: () => void; onDone: () =
               { icon: "👥", label: "Today", desc: "Track scores with friends, free" },
               { icon: "💰", label: "Soon", desc: "Stake USDC, win real prizes" },
             ].map(({ icon, label, desc }) => (
-              <div key={label} style={{ padding: "12px 10px", borderRadius: 12, background: P.blueBg, border: `1px solid #d9ddff`, textAlign: "center" }}>
+              <div key={label} style={{ padding: "12px 10px", borderRadius: 12, background: P.blueBg, border: `1px solid ${P.border}`, textAlign: "center" }}>
                 <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: P.blue, marginBottom: 2 }}>{label}</div>
                 <div style={{ fontSize: 11, color: P.muted, lineHeight: 1.4 }}>{desc}</div>
@@ -1494,7 +1495,7 @@ function AuthScreen({ onGuest }: { onGuest: () => Promise<void> }) {
   );
 
   return (
-    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: DARK_SCREEN, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
       {BG_FLOATS.map((f, i) => (
         <span key={i} style={{ position: "absolute", top: f.top, left: f.left, fontSize: f.size, opacity: 0.1, pointerEvents: "none", userSelect: "none", animation: `sv-float ${f.dur} ease-in-out ${f.delay} infinite` }}>{f.emoji}</span>
       ))}
@@ -1508,7 +1509,7 @@ function AuthScreen({ onGuest }: { onGuest: () => Promise<void> }) {
         <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", margin: "0 0 36px", textAlign: "center", lineHeight: 1.65, animation: "sv-fade-up 0.5s ease 0.45s both" }}>
           Predict scores · Climb the board · Win the pot
         </p>
-        {error && <div style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(223,83,83,0.2)", color: "#fca5a5", fontSize: 13 }}>{error}</div>}
+        {error && <div style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 13 }}>{error}</div>}
         <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, animation: "sv-fade-up 0.5s ease 0.55s both" }}>
           {/* Google */}
           <button onClick={signInGoogle} disabled={loading !== null} style={{ width: "100%", padding: "15px 20px", borderRadius: 14, border: "none", background: "#fff", color: "#1a1a1a", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: loading && loading !== "google" ? 0.5 : 1 }}>
@@ -1591,16 +1592,16 @@ function LeagueScreen({ userId, onJoined }: {
   }
 
   const inputSt = { width: "100%", padding: "16px 18px", borderRadius: 14, border: "1.5px solid rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 16, fontWeight: 700, outline: "none" } as const;
-  const btnSt   = { width: "100%", padding: 16, borderRadius: 14, border: "none", background: "#fff", color: P.blue, fontSize: 15, fontWeight: 900, cursor: "pointer" } as const;
+  const btnSt   = { width: "100%", padding: 16, borderRadius: 14, border: "none", background: "#fff", color: P.ink, fontSize: 15, fontWeight: 900, cursor: "pointer" } as const;
   const back    = (s: "choose") => <button onClick={() => { setStep(s); setError(""); setFound(null); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 13, cursor: "pointer", textAlign: "center" as const, padding: "8px 0" }}>← Back</button>;
 
   return (
-    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+    <div style={{ height: "100%", position: "relative", overflow: "hidden", background: DARK_SCREEN, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
       {BG_FLOATS.map((f, i) => (
         <span key={i} style={{ position: "absolute", top: f.top, left: f.left, fontSize: f.size, opacity: 0.08, pointerEvents: "none", userSelect: "none", animation: `sv-float ${f.dur} ease-in-out ${f.delay} infinite` }}>{f.emoji}</span>
       ))}
       <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 360 }}>
-        {error && <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(223,83,83,0.2)", color: "#fca5a5", fontSize: 13 }}>{error}</div>}
+        {error && <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 13 }}>{error}</div>}
 
         {step === "choose" && (
           <>
@@ -1689,7 +1690,7 @@ function PendingPaymentScreen({ league, onRefresh, onSignOut }: {
   const [checking, setChecking] = useState(false);
   async function check() { setChecking(true); await onRefresh(); setChecking(false); }
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px", background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px", background: DARK_SCREEN }}>
       <div style={{ fontSize: 52, marginBottom: 16 }}>⏳</div>
       <h2 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 10px", textAlign: "center" }}>Waiting for payment confirmation</h2>
       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", textAlign: "center", lineHeight: 1.65, margin: "0 0 8px" }}>
@@ -1699,7 +1700,7 @@ function PendingPaymentScreen({ league, onRefresh, onSignOut }: {
       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center", lineHeight: 1.6, margin: "0 0 32px" }}>
         Transfer your stake to the league organiser (bank transfer, cash, Lydia…). Once confirmed, they&apos;ll unlock your access.
       </p>
-      <button onClick={check} disabled={checking} style={{ width: "100%", maxWidth: 320, padding: "15px 0", borderRadius: 14, border: "none", background: "#fff", color: P.blue, fontSize: 15, fontWeight: 900, cursor: "pointer", marginBottom: 12 }}>
+      <button onClick={check} disabled={checking} style={{ width: "100%", maxWidth: 320, padding: "15px 0", borderRadius: 14, border: "none", background: "#fff", color: P.ink, fontSize: 15, fontWeight: 900, cursor: "pointer", marginBottom: 12 }}>
         {checking ? "Checking…" : "I've paid — check again"}
       </button>
       <button onClick={onSignOut} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 12, cursor: "pointer" }}>Sign out</button>
@@ -1808,7 +1809,7 @@ export default function App() {
   }
 
   const Wrapper = ({ children, full = false }: { children: React.ReactNode; full?: boolean }) => (
-    <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: full ? "#1a2461" : P.bg }}>
+    <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: full ? "#050505" : P.bg }}>
       <div style={{ height: "min(100dvh, 932px)", width: "min(100vw, 430px)", overflow: "hidden" }}>
         {children}
       </div>
@@ -1821,7 +1822,7 @@ export default function App() {
 
   return (
     <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", background: P.bg }}>
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", width: "min(100vw, 430px)", height: "min(100dvh, 932px)", overflow: "hidden", background: P.canvas, boxShadow: "0 28px 90px rgba(31,39,84,0.18), 0 0 0 1px rgba(30,37,72,0.05)" }}>
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", width: "min(100vw, 430px)", height: "min(100dvh, 932px)", overflow: "hidden", background: P.canvas, boxShadow: "0 28px 90px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.10)" }}>
         {/* Top bar — hidden on Profile (it has its own header with hamburger) */}
         {tab !== "profile" && (
           <header style={{ display: "grid", gridTemplateColumns: "1fr", alignItems: "center", minHeight: 56, padding: "max(0px,env(safe-area-inset-top)) 16px 0", background: P.white, borderBottom: `1px solid ${P.border}`, boxShadow: "0 4px 18px rgba(32,39,78,0.04)", flexShrink: 0 }}>
@@ -1839,7 +1840,7 @@ export default function App() {
 
         {/* League setup overlay — accessible from within the app */}
         {showLeagueSetup && (
-          <div style={{ position: "absolute", inset: 0, zIndex: 40, background: "linear-gradient(160deg, #1a2461 0%, #2a3a9e 45%, #1637d5 100%)", display: "flex", flexDirection: "column" }}>
+          <div style={{ position: "absolute", inset: 0, zIndex: 40, background: DARK_SCREEN, display: "flex", flexDirection: "column" }}>
             <div style={{ padding: "max(env(safe-area-inset-top),14px) 16px 0", display: "flex", alignItems: "center" }}>
               <button onClick={() => setShowLeagueSetup(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 20, padding: "7px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>← Back</button>
             </div>

@@ -9,7 +9,7 @@ export default function Icon() {
       style={{
         width: 192,
         height: 192,
-        background: "linear-gradient(145deg, #1a2461 0%, #3157f6 100%)",
+        background: "linear-gradient(145deg, #050505 0%, #202020 100%)",
         borderRadius: 44,
         display: "flex",
         flexDirection: "column",
